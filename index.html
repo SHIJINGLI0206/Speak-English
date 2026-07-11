@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- iOS Home Screen App Capabilities -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="AuraSpeak">
+  <title>AuraSpeak - AI English Pronunciation Coach</title>
+  <!-- Google Fonts for premium design aesthetics -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Chart.js CDN for progress dashboard -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- iPhone Device Enclosure -->
+    <div class="iphone-device">
+      <div class="iphone-notch">
+        <div class="dynamic-island"></div>
+      </div>
+      <div class="iphone-speaker"></div>
+      <div class="iphone-button volume-up"></div>
+      <div class="iphone-button volume-down"></div>
+      <div class="iphone-button power"></div>
+      
+      <!-- iPhone Screen Content -->
+      <div class="iphone-screen">
+        <!-- Status Bar -->
+        <div class="status-bar">
+          <div class="status-time" id="status-time">13:08</div>
+          <div class="status-icons">
+            <span class="icon-signal">📶</span>
+            <span class="icon-wifi">📶</span>
+            <span class="icon-battery">🔋</span>
+          </div>
+        </div>
+
+        <!-- App Header -->
+        <header class="app-header">
+          <div class="header-logo">
+            <span class="logo-accent">Aura</span>Speak
+          </div>
+          <button class="settings-trigger" id="settings-trigger" aria-label="Settings">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
+        </header>
+
+        <!-- Main Screen Body Container -->
+        <main class="screen-body" id="screen-body">
+          
+          <!-- SCREEN 1: DAILY PRACTICE -->
+          <section id="daily-practice-view" class="page-view active">
+            <!-- Practice Start Screen -->
+            <div id="practice-intro" class="practice-intro fade-in">
+              <div class="welcome-card">
+                <div class="card-day-indicator" id="practice-day-title">Day 1: Initial Baseline Assessment</div>
+                <h2 class="welcome-heading">Ready for your daily practice?</h2>
+                <p class="welcome-sub">Improve your American English pronunciation through AI-guided analysis and mouth articulation tracking.</p>
+                
+                <div class="today-focus-box">
+                  <div class="focus-title">💡 Today's Focus</div>
+                  <div class="focus-text" id="today-focus-text">Establish your general pronunciation benchmark. Practicing vowels, final consonants, and liquid R/L sounds.</div>
+                </div>
+
+                <div class="practice-stats-brief">
+                  <div class="stat-item">
+                    <span class="stat-num" id="today-card-count">10</span>
+                    <span class="stat-label">Words</span>
+                  </div>
+                  <div class="stat-item">
+                    <span class="stat-num" id="current-difficulty-badge">Beg</span>
+                    <span class="stat-label">Level</span>
+                  </div>
+                  <div class="stat-item">
+                    <span class="stat-num" id="today-goal-pct">70%</span>
+                    <span class="stat-label">Goal Score</span>
+                  </div>
+                </div>
+
+                <button class="primary-button btn-large pulse-glow" id="start-session-btn">
+                  Start Daily Practice
+                </button>
+              </div>
+            </div>
+
+            <!-- Active Practice Flow Container -->
+            <div id="practice-flow" class="practice-flow hidden">
+              <!-- Card Progress Bar -->
+              <div class="progress-bar-container">
+                <div class="progress-bar-fill" id="practice-progress-fill" style="width: 10%;"></div>
+                <span class="progress-ratio" id="practice-progress-text">1 / 10</span>
+              </div>
+
+              <!-- Main Interactive Flash Card -->
+              <div class="flashcard" id="active-flashcard">
+                <div class="card-header">
+                  <span class="card-category" id="card-category">Vowel Sounds</span>
+                  <span class="card-difficulty" id="card-diff">Beginner</span>
+                </div>
+                
+                <div class="word-display-container">
+                  <h1 class="flashcard-word" id="card-word">water</h1>
+                  <p class="flashcard-ipa" id="card-ipa">/ˈwɑː.t̬ɚ/</p>
+                  
+                  <button class="listen-button" id="listen-word-btn">
+                    <svg class="icon-speaker" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                    </svg>
+                    Listen
+                  </button>
+                </div>
+
+                <!-- Interactive Media Box (Webcam & Face/Mouth tracking) -->
+                <div class="media-container">
+                  <!-- Video stream wrapper -->
+                  <div class="webcam-wrapper">
+                    <video id="webcam-feed" autoplay playsinline muted class="webcam-video"></video>
+                    <canvas id="face-mesh-overlay" class="face-mesh-canvas"></canvas>
+                    <div class="camera-placeholder" id="camera-placeholder">
+                      <div class="camera-placeholder-icon">📷</div>
+                      <p>Camera feed will activate for mouth analysis</p>
+                    </div>
+                  </div>
+                  
+                  <!-- Calibration / Articulation Hint Banner -->
+                  <div class="mouth-hint-banner" id="mouth-hint-banner">
+                    Align your mouth in the box and tap Practice
+                  </div>
+                </div>
+
+                <!-- Practice Controls & Live Waveform -->
+                <div class="card-controls">
+                  <!-- Audio Waveform Visualizer overlay -->
+                  <div class="voice-wave-container hidden" id="voice-wave-container">
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                  </div>
+
+                  <button class="practice-action-btn" id="practice-action-btn">
+                    <span class="btn-ripple"></span>
+                    <span class="btn-icon">🎤</span>
+                    <span class="btn-text" id="practice-btn-text">Tap to Practice</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- AI Pronunciation Report (Hidden initially, slides up overlay style) -->
+              <div class="ai-report-overlay hidden" id="ai-report-overlay">
+                <div class="ai-report-sheet">
+                  <div class="drag-handle"></div>
+                  
+                  <div class="report-header">
+                    <h3>AI Pronunciation Report</h3>
+                    <button class="close-report-btn" id="close-report-btn">✕</button>
+                  </div>
+
+                  <div class="report-body">
+                    <!-- Score Ring -->
+                    <div class="score-circle-container">
+                      <svg class="score-ring-svg" viewBox="0 0 100 100">
+                        <circle class="score-ring-bg" cx="50" cy="50" r="40"></circle>
+                        <circle class="score-ring-fg" cx="50" cy="50" r="40" id="score-ring-progress"></circle>
+                      </svg>
+                      <div class="score-text-overlay">
+                        <span class="score-num" id="report-score">82</span>
+                        <span class="score-total">/100</span>
+                      </div>
+                    </div>
+
+                    <!-- Visual Speech Transcript Comparison -->
+                    <div class="transcript-comparison">
+                      <div class="comparison-row">
+                        <span class="comp-label">Target:</span>
+                        <span class="comp-val word-target" id="report-target-word">water</span>
+                      </div>
+                      <div class="comparison-row">
+                        <span class="comp-label">You Said:</span>
+                        <span class="comp-val word-spoken" id="report-spoken-word">wader</span>
+                      </div>
+                    </div>
+
+                    <!-- AI Speech Feedback -->
+                    <div class="feedback-card feedback-positive">
+                      <h4>🌟 What You Did Well</h4>
+                      <ul class="feedback-list" id="feedback-good-list">
+                        <li>Clear vowel sound</li>
+                        <li>Good word rhythm</li>
+                      </ul>
+                    </div>
+
+                    <div class="feedback-card feedback-constructive">
+                      <h4>🔧 What To Improve</h4>
+                      <ul class="feedback-list" id="feedback-improve-list">
+                        <li>The 't' sound was voiced as 'd'. Try to keep it unvoiced.</li>
+                      </ul>
+                    </div>
+
+                    <!-- Computer Vision Mouth Analysis Details -->
+                    <div class="feedback-card feedback-cv">
+                      <h4>👄 Articulation Analysis (CV)</h4>
+                      <div class="cv-metrics">
+                        <div class="metric-row">
+                          <span>Mouth Opening:</span>
+                          <strong id="cv-metric-opening">Optimal</strong>
+                        </div>
+                        <div class="metric-row">
+                          <span>Lip Rounding:</span>
+                          <strong id="cv-metric-rounding">Good</strong>
+                        </div>
+                      </div>
+                      <p class="cv-tip-text" id="feedback-cv-tip">"Open your mouth slightly wider to capture the pure vowel transition."</p>
+                    </div>
+
+                    <!-- Action buttons -->
+                    <div class="report-actions">
+                      <button class="secondary-button" id="retry-word-btn">Retry Word</button>
+                      <button class="primary-button" id="next-word-btn">Next Word</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Daily Completed Splash Screen -->
+            <div id="practice-completed" class="practice-completed hidden">
+              <div class="completed-card">
+                <div class="completed-icon">🎉</div>
+                <h2>Daily Practice Complete!</h2>
+                <p>Excellent job. You have completed today's target pronunciation training.</p>
+                
+                <div class="completed-stats">
+                  <div class="comp-stat-box">
+                    <span class="c-stat-val" id="comp-words-count">10/10</span>
+                    <span class="c-stat-label">Words Completed</span>
+                  </div>
+                  <div class="comp-stat-box">
+                    <span class="c-stat-val" id="comp-avg-score">84%</span>
+                    <span class="c-stat-label">Average Score</span>
+                  </div>
+                </div>
+
+                <div class="coach-congrats-bubble">
+                  <div class="coach-avatar">🤖</div>
+                  <div class="coach-text">
+                    <strong>Coach Note:</strong> Your 'TH' sounds are stabilizing, but 'R' combinations need continued training. I will generate targeted vocabulary for you tomorrow.
+                  </div>
+                </div>
+
+                <button class="primary-button btn-large" id="finish-practice-btn">Back to Dashboard</button>
+              </div>
+            </div>
+          </section>
+
+          
+          <!-- SCREEN 2: MONTHLY REVIEW -->
+          <section id="monthly-review-view" class="page-view">
+            <h2 class="view-title">Monthly Progress</h2>
+            <p class="view-subtitle">Pronunciation insights and trends for this month.</p>
+
+            <!-- Overall Performance Cards -->
+            <div class="monthly-summary-grid">
+              <div class="summary-card">
+                <span class="sum-label">Days Active</span>
+                <span class="sum-val" id="sum-days-active">14</span>
+              </div>
+              <div class="summary-card">
+                <span class="sum-label">Words Practiced</span>
+                <span class="sum-val" id="sum-words-count">140</span>
+              </div>
+              <div class="summary-card">
+                <span class="sum-label">Average Score</span>
+                <span class="sum-val" id="sum-avg-score">78%</span>
+              </div>
+            </div>
+
+            <!-- Score Trend Chart Container -->
+            <div class="chart-card">
+              <h3>Pronunciation Score Trend</h3>
+              <div class="chart-wrapper">
+                <canvas id="score-trend-chart"></canvas>
+              </div>
+            </div>
+
+            <!-- Most Improved Words -->
+            <div class="table-card">
+              <h3>Most Improved Words</h3>
+              <div class="table-responsive">
+                <table class="progress-table">
+                  <thead>
+                    <tr>
+                      <th>Word</th>
+                      <th>First Score</th>
+                      <th>Latest Score</th>
+                      <th>Gain</th>
+                    </tr>
+                  </thead>
+                  <tbody id="improved-words-tbody">
+                    <tr>
+                      <td>thought</td>
+                      <td class="score-low">55%</td>
+                      <td class="score-high">82%</td>
+                      <td class="score-gain">+27%</td>
+                    </tr>
+                    <tr>
+                      <td>world</td>
+                      <td class="score-low">60%</td>
+                      <td class="score-high">88%</td>
+                      <td class="score-gain">+28%</td>
+                    </tr>
+                    <tr>
+                      <td>really</td>
+                      <td class="score-low">65%</td>
+                      <td class="score-high">85%</td>
+                      <td class="score-gain">+20%</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- AI Challenge Summary Box -->
+            <div class="summary-detail-card">
+              <h3>AI Pronunciation Summary</h3>
+              
+              <div class="challenge-group">
+                <h4>🎯 Common Pronunciation Challenges</h4>
+                <ol class="challenge-list" id="summary-challenges-list">
+                  <li><strong>TH sound</strong> (Replacing voiceless /θ/ with /t/ or /f/)</li>
+                  <li><strong>R/L distinction</strong> (Tongue placement struggles on liquid transitions)</li>
+                  <li><strong>Final consonants</strong> (Omitting or swallowing word endings like /d/, /t/, /p/)</li>
+                </ol>
+              </div>
+
+              <div class="challenge-group">
+                <h4>👄 Mouth Articulation Progress</h4>
+                <ul class="articulation-list" id="summary-articulation-list">
+                  <li>Improved mouth opening consistency on wide vowel sequences.</li>
+                  <li>Increased lip rounding calibration for /w/ and /oʊ/ sounds.</li>
+                  <li>Slight instability remaining on sustained tongue placement for final /l/ blends.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+        </main>
+
+        <!-- Dynamic Settings Drawer Overlay (Slide up) -->
+        <div class="settings-drawer hidden" id="settings-drawer">
+          <div class="settings-sheet">
+            <div class="drag-handle"></div>
+            <div class="settings-header">
+              <h3>Settings & API Config</h3>
+              <button class="close-settings-btn" id="close-settings-btn">✕</button>
+            </div>
+            
+            <div class="settings-body">
+              <div class="setting-item">
+                <label for="practice-accent">Target Pronunciation Accent</label>
+                <div class="accent-badge-container">
+                  <span class="badge active">American (US)</span>
+                  <span class="badge disabled">British (UK)</span>
+                </div>
+              </div>
+
+              <div class="setting-item">
+                <label for="difficulty-select">Proficiency Level</label>
+                <select id="difficulty-select" class="form-select">
+                  <option value="adaptive" selected>Adaptive Difficulty (Auto)</option>
+                  <option value="beginner">Beginner</option>
+                  <option value="intermediate">Intermediate</option>
+                  <option value="advanced">Advanced</option>
+                </select>
+              </div>
+
+              <div class="setting-item">
+                <label for="gemini-key-input">Gemini API Key (Optional)</label>
+                <input type="password" id="gemini-key-input" class="form-input" placeholder="AI evaluation falls back to local if empty">
+                <small class="help-text">Input your key to send real audio packages to the Gemini Voice Model for premium phonetic coach analytics.</small>
+              </div>
+
+              <div class="setting-item">
+                <label>Audio Source / Microphone</label>
+                <div class="badge badge-outline">Browser Default Microphone</div>
+              </div>
+
+              <div class="setting-item actions">
+                <button class="danger-button" id="reset-history-btn">Reset Practice History</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- iPhone Native Bottom Tab Bar Nav -->
+        <nav class="bottom-tab-bar">
+          <button class="tab-item active" id="tab-practice" data-target="daily-practice-view">
+            <span class="tab-icon">🎴</span>
+            <span class="tab-label">Practice</span>
+          </button>
+          <button class="tab-item" id="tab-review" data-target="monthly-review-view">
+            <span class="tab-icon">📊</span>
+            <span class="tab-label">Review</span>
+          </button>
+        </nav>
+
+        <!-- iPhone Home Indicator Screen Bar -->
+        <div class="iphone-home-indicator"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/storage.js"></script>
+  <script src="js/wordGenerator.js"></script>
+  <script src="js/voice.js"></script>
+  <script src="js/cv.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
