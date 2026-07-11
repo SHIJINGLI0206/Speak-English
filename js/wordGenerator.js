@@ -1,5 +1,5 @@
 /**
- * Word Generator & Vocabulary Database for AuraSpeak
+ * Word Generator & Vocabulary Database for SpeakUp
  * Provides phonetic IPA dictionary, sound categories, and spaced-repetition daily word scheduling.
  */
 

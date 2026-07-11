@@ -1,5 +1,5 @@
 /**
- * Master Application Coordinator for AuraSpeak
+ * Master Application Coordinator for SpeakUp
  * Manages view routing, flashcard practice flows, button states, 
  * audio/cam synchronization, Chart.js rendering, and user configuration.
  */

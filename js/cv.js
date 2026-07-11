@@ -1,5 +1,5 @@
 /**
- * Computer Vision Mouth Tracker for AuraSpeak
+ * Computer Vision Mouth Tracker for SpeakUp
  * Accesses camera stream, analyzes audio amplitudes, and renders an 
  * interactive neon facial grid and mouth landmark wireframe on canvas.
  */

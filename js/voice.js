@@ -1,5 +1,5 @@
 /**
- * Voice Engine and Evaluation Coach for AuraSpeak
+ * Voice Engine and Evaluation Coach for SpeakUp
  * Handles Text-to-Speech playback, speech recognition, audio recording, 
  * local phonetic scoring, and optional Gemini Voice API payload shipping.
  */

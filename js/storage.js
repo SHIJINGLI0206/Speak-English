@@ -1,11 +1,11 @@
 /**
- * Storage Manager for AuraSpeak
+ * Storage Manager for SpeakUp
  * Handles local persistence of practice history, settings, and analytics.
  */
 const StorageManager = {
   KEYS: {
-    HISTORY: 'auraspeak_practice_history',
-    SETTINGS: 'auraspeak_settings'
+    HISTORY: 'speakup_practice_history',
+    SETTINGS: 'speakup_settings'
   },
 
   DEFAULT_SETTINGS: {
