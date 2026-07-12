@@ -36,7 +36,7 @@ const App = {
   cacheDOM() {
     this.nodes = {
       // Time bar
-      statusTime: document.getElementById('status-time'),
+      statusTime: document.getElementById('status-time'), // may be null if removed
 
       // Page Views
       dailyPracticeView: document.getElementById('daily-practice-view'),
@@ -153,6 +153,7 @@ const App = {
 
   // Setup status bar clock
   initClock() {
+    if (!this.nodes.statusTime) return; // Status bar removed on mobile — skip
     const updateClock = () => {
       const now = new Date();
       let hours = now.getHours();
@@ -324,23 +325,16 @@ const App = {
     const cardData = this.state.currentSessionWords[wordIndex];
 
     if (!this.state.isRecording) {
-      // 1. Activate camera stream & face mesh
-      this.nodes.cameraPlaceholder.classList.add('hidden');
-      this.nodes.mouthHintBanner.textContent = "🔊 Speaking - Articulate Clearly";
-      
-      const camSuccess = await MouthTracker.startCamera(this.nodes.webcamFeed, this.nodes.faceMeshOverlay);
-      if (!camSuccess) {
-        alert("Camera and Mic permissions are needed for AI speech coaching feedback.");
-        this.nodes.cameraPlaceholder.classList.remove('hidden');
-        return;
-      }
-
-      // 2. Start audio transcription
+      // Update UI immediately so the button feels responsive on iOS
       this.state.isRecording = true;
       this.nodes.practiceActionBtn.classList.add('recording');
-      this.nodes.practiceBtnText.textContent = "Tap to Finish";
+      this.nodes.practiceBtnText.textContent = 'Tap to Finish';
       this.nodes.voiceWaveContainer.classList.remove('hidden');
+      this.nodes.mouthHintBanner.textContent = '🔊 Speaking - Articulate Clearly';
 
+      // 1. Start speech recognition first (critical path)
+      //    VoiceCoach.startPractice is async but we don't await it here
+      //    so the button state update above is already visible.
       VoiceCoach.startPractice(
         cardData.word,
         cardData.ipa,
@@ -349,11 +343,25 @@ const App = {
         (report) => this.handlePracticeCompleted(report),
         (err) => {
           alert(err);
+          this.state.isRecording = false;
           this.resetPracticeControls();
         }
       );
+
+      // 2. Start camera as a secondary, non-blocking enhancement.
+      //    We don't gate the recording flow on camera success.
+      this.nodes.cameraPlaceholder.classList.add('hidden');
+      MouthTracker.startCamera(this.nodes.webcamFeed, this.nodes.faceMeshOverlay)
+        .then(camSuccess => {
+          if (!camSuccess) {
+            // Camera failed but speech is still running — silently show placeholder
+            this.nodes.cameraPlaceholder.classList.remove('hidden');
+          }
+        });
+
     } else {
-      // User requested stopping manually
+      // User tapped "Tap to Finish" — stop and analyse immediately
+      this.state.isRecording = false;
       VoiceCoach.stopPractice();
     }
   },
