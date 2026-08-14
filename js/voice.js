@@ -1,7 +1,8 @@
 /**
  * Voice Engine and Evaluation Coach for SpeakUp
  * Handles Text-to-Speech playback, speech recognition, audio recording,
- * local phonetic scoring, and optional Gemini Voice API payload shipping.
+ * transcript-based clarity checks. Audio is kept in-browser in this static
+ * deployment; cloud scoring belongs behind a server, never an API key field.
  *
  * iOS Safari Compatibility Notes:
  * - MediaRecorder is NOT supported on iOS Safari — gracefully skipped.
@@ -156,130 +157,47 @@ const VoiceCoach = {
 
     // Small delay so the UI can update to "Analyzing..." before heavy work
     setTimeout(async () => {
-      const settings = StorageManager.getSettings();
-
-      if (settings.geminiKey && settings.geminiKey.trim() !== '') {
-        // Text-only Gemini evaluation (no audio blob on iOS)
-        try {
-          const report = await this.evaluateWithGeminiText(
-            settings.geminiKey, targetWord, targetIpa, category, transcript
-          );
-          if (onComplete) onComplete(report);
-        } catch (err) {
-          console.error('Gemini API failed, falling back to local coach:', err);
-          const report = this.evaluateLocally(targetWord, targetIpa, category, transcript);
-          if (onComplete) onComplete(report);
-        }
-      } else {
-        // Local evaluation
-        const report = this.evaluateLocally(targetWord, targetIpa, category, transcript);
-        setTimeout(() => { if (onComplete) onComplete(report); }, 800);
-      }
+      const report = this.evaluateLocally(targetWord, targetIpa, category, transcript);
+      setTimeout(() => { if (onComplete) onComplete(report); }, 350);
     }, 200);
   },
 
-  // Gemini text-based evaluation (works everywhere including iOS)
-  async evaluateWithGeminiText(apiKey, targetWord, targetIpa, category, transcript) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-
-    const prompt = `You are a high-quality personal English Pronunciation Coach (American accent).
-The user is practicing the word "${targetWord}" (IPA: ${targetIpa}, category: ${category}).
-The speech-to-text system heard them say: "${transcript || '[no transcription captured]'}".
-
-Based on the target word vs what was heard, give detailed pronunciation feedback.
-
-Respond ONLY with a valid JSON object (no markdown, no backticks):
-{
-  "score": <integer 0-100>,
-  "wellDone": ["<point 1>", "<point 2>"],
-  "toImprove": ["<point 1>", "<point 2>"],
-  "transcription": "<what was heard>",
-  "cvTips": {
-    "opening": "<Optimal | Needs Wider | Too Narrow>",
-    "rounding": "<Good | Needs More Rounding | Flat Lips>",
-    "tip": "<specific mouth movement advice>"
-  }
-}`;
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: 'application/json' }
-      })
-    });
-
-    if (!response.ok) throw new Error(`Gemini API ${response.status}`);
-
-    const data = await response.json();
-    const raw = data.candidates[0].content.parts[0].text;
-    const parsed = JSON.parse(raw.trim());
-
-    return {
-      score: parsed.score || 70,
-      transcription: parsed.transcription || transcript || targetWord,
-      wellDone: parsed.wellDone || ['Good attempt!'],
-      toImprove: parsed.toImprove || ['Keep practising this sound.'],
-      cvMetrics: {
-        opening: parsed.cvTips?.opening || 'Optimal',
-        rounding: parsed.cvTips?.rounding || 'Good',
-        tip: parsed.cvTips?.tip || 'Focus on clear articulation.'
-      }
-    };
-  },
-
-  // High-fidelity local simulation based on transcription
+  // Honest local fallback: a transcript clarity check, not phoneme scoring.
   evaluateLocally(target, ipa, category, transcript) {
     const targetClean = (target || '').toLowerCase().trim().replace(/[^a-z\s]/g, '');
     const transcriptClean = (transcript || '').toLowerCase().trim().replace(/[^a-z\s]/g, '');
 
     let score, wellDone, toImprove;
-    let cvOpening = 'Optimal';
-    let cvRounding = 'Good';
-    let cvTip = 'Keep up the excellent mouth posture!';
 
     if (transcriptClean === targetClean && transcriptClean.length > 0) {
-      score = Math.floor(Math.random() * 11) + 90;
-      wellDone = ['Excellent phoneme positioning.', 'Perfect vowel timing and accuracy.'];
-      toImprove = ['Maintain this tongue placement in sentences.'];
+      score = 92;
+      wellDone = ['The recogniser heard the target word clearly.'];
+      toImprove = ['Repeat once more while copying the reference rhythm.'];
     } else if (transcriptClean.length === 0) {
-      score = Math.floor(Math.random() * 15) + 40;
-      wellDone = ['Voice detected — good start.'];
-      toImprove = ['Ensure your microphone is clear.', 'Speak loudly and articulate each syllable.'];
-      cvOpening = 'Too Narrow';
-      cvTip = 'Open your mouth slightly wider when starting to pronounce.';
+      score = 45;
+      wellDone = ['The attempt was saved for your practice streak.'];
+      toImprove = ['The browser could not capture a transcript. Check microphone permission and try the word once more.'];
     } else {
-      score = Math.floor(Math.random() * 20) + 68;
-      wellDone = ['Good overall energy and rhythm.'];
+      const distance = this.levenshtein(targetClean, transcriptClean);
+      score = Math.max(55, Math.round(86 - (distance / Math.max(targetClean.length, 1)) * 35));
+      wellDone = ['You completed a clear spoken attempt.'];
 
       if (category === 'TH Sounds') {
-        toImprove = ['The /θ/ needs more forward tongue position.', 'Keep the airflow continuous between your teeth.'];
-        cvTip = 'Let the tip of your tongue peep out slightly between your teeth for the TH sound.';
-        cvRounding = 'Flat Lips';
+        toImprove = ['Use the reference for TH: keep airflow continuous; only a visible tongue-tip pose can be checked by camera.'];
       } else if (category === 'R Sounds') {
-        toImprove = ['Pull your tongue further back for the American /r/.', 'Do not let the tongue tip touch the roof of your mouth.'];
-        cvTip = 'Pucker your lips slightly and pull the corners in for a stronger R sound.';
-        cvOpening = 'Needs Wider';
+        toImprove = ['Use the reference mouth shape for R. The camera checks visible lips only, not hidden tongue position.'];
       } else if (category === 'L Sounds') {
-        toImprove = ['Press the tongue tip firmly behind your front teeth for /l/.', 'Ensure the sides of the tongue release the air.'];
-        cvTip = 'Keep your tongue tip stable against the upper alveolar ridge.';
+        toImprove = ['Use the reference animation for L, then practise the word slowly before natural speed.'];
       } else if (category === 'V/W Sounds') {
         if (targetClean.startsWith('w')) {
           toImprove = ['Round your lips tightly for the /w/ sound, avoiding /v/ friction.'];
-          cvRounding = 'Flat Lips';
-          cvTip = 'Round your lips tightly as if preparing to whistle.';
         } else {
           toImprove = ['Gently touch your upper teeth to your lower lip for /v/.'];
-          cvRounding = 'Flat Lips';
-          cvTip = 'Touch your upper teeth to your lower lip — do not round lips for /v/.';
         }
       } else if (category === 'Final Consonants') {
         toImprove = ['Release the final consonant sound clearly.', 'Do not swallow the word ending.'];
-        cvTip = 'Keep your jaw stable and fully release the final stop consonant.';
       } else {
         toImprove = ['Focus on matching the core vowel height and positioning.'];
-        cvTip = 'Open your mouth wider for better vowel accuracy.';
       }
     }
 
@@ -288,7 +206,20 @@ Respond ONLY with a valid JSON object (no markdown, no backticks):
       transcription: transcript && transcript.length > 0 ? transcript : '[Inaudible]',
       wellDone,
       toImprove,
-      cvMetrics: { opening: cvOpening, rounding: cvRounding, tip: cvTip }
+      cvMetrics: { opening: 'Not assessed', rounding: 'Not assessed', tip: 'Visible-mouth feedback appears only when the camera has a clear face landmark result.' }
     };
+  },
+
+  levenshtein(a, b) {
+    const row = Array.from({ length: b.length + 1 }, (_, index) => index);
+    for (let i = 1; i <= a.length; i++) {
+      let previous = row[0]; row[0] = i;
+      for (let j = 1; j <= b.length; j++) {
+        const saved = row[j];
+        row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1));
+        previous = saved;
+      }
+    }
+    return row[b.length];
   }
 };

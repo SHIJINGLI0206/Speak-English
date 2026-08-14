@@ -460,6 +460,30 @@ body {
   padding: 10px 0;
 }
 
+.mastery-status { color: var(--text-muted); font-size: 11px; margin: -4px auto 12px; max-width: 260px; }
+
+.articulation-reference {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 112px;
+  padding: 12px;
+  margin-bottom: 12px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, .18), rgba(139, 92, 246, .08));
+  border: 1px solid rgba(129, 140, 248, .2);
+}
+.reference-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 5px; }
+.reference-copy strong { font-family: var(--font-display); font-size: 13px; }
+.reference-copy span:not(.reference-eyebrow) { color: var(--text-muted); font-size: 10px; line-height: 1.35; }
+.reference-eyebrow { color: #a5b4fc; font-size: 9px; font-weight: 800; letter-spacing: .8px; }
+.viseme-avatar { width: 126px; height: 86px; flex: 0 0 auto; }
+.avatar-face { fill: #dbeafe; stroke: #a5b4fc; stroke-width: 1.5; }
+.avatar-nose { fill: none; stroke: #818cf8; stroke-width: 2; stroke-linecap: round; }
+.avatar-mouth { fill: #160d38; stroke: #6366f1; stroke-width: 2; transform-origin: center; transition: all .18s ease; }
+.avatar-teeth { fill: #fff; stroke: #c7d2fe; stroke-width: .7; }
+.avatar-tongue { fill: #f9a8d4; }
+
 .flashcard-word {
   font-family: var(--font-display);
   font-size: 38px;
@@ -508,11 +532,13 @@ body {
   background-color: #0b0a14;
   border: 1px solid rgba(255, 255, 255, 0.05);
   margin-bottom: 16px;
-  min-height: 180px;
+  min-height: 290px;
   display: flex;
   flex-direction: column;
   justify-content: center;
 }
+
+.media-container:has(.webcam-video[style*="block"]) { min-height: 360px; }
 
 .webcam-wrapper {
   position: absolute;
@@ -572,12 +598,34 @@ body {
   color: var(--text-main);
   padding: 6px 12px;
   border-radius: 20px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   white-space: nowrap;
   z-index: 4;
   border: 1px solid rgba(255,255,255,0.08);
 }
+
+.readiness-card, .mastery-card {
+  background: linear-gradient(135deg, rgba(16,185,129,.13), rgba(99,102,241,.10));
+  border: 1px solid rgba(16,185,129,.25);
+  border-radius: 18px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.readiness-card { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.readiness-card h3, .mastery-card h3 { font-family: var(--font-display); margin: 5px 0; font-size: 16px; }
+.readiness-card p { color: var(--text-muted); font-size: 11px; line-height: 1.4; }
+.readiness-card > strong { font-family: var(--font-display); font-size: 28px; color: var(--accent-green); }
+.sound-mastery-list { display: grid; gap: 10px; }
+.sound-mastery-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; font-size: 12px; }
+.sound-mastery-row strong { font-size: 11px; color: var(--text-muted); }
+.sound-progress { grid-column: 1 / -1; height: 6px; background: rgba(255,255,255,.08); border-radius: 6px; overflow: hidden; }
+.sound-progress span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent-purple), var(--accent-green)); }
+.attempt-history { display: grid; gap: 8px; }
+.attempt-row { border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 10px; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; }
+.attempt-row strong { font-family: var(--font-display); font-size: 14px; }
+.attempt-row .attempt-meta, .attempt-row .attempt-focus { color: var(--text-muted); font-size: 10px; line-height: 1.35; }
+.attempt-row .attempt-focus { grid-column: 1 / -1; color: #c4b5fd; }
 
 /* Practice Controls */
 .card-controls {
@@ -1415,4 +1463,3 @@ body {
     padding-bottom: 96px;
   }
 }
-

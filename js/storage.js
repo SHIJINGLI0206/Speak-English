@@ -10,7 +10,6 @@ const StorageManager = {
 
   DEFAULT_SETTINGS: {
     difficulty: 'adaptive', // adaptive, beginner, intermediate, advanced
-    geminiKey: '',
     accent: 'US',
     currentDay: 1
   },
@@ -52,6 +51,7 @@ const StorageManager = {
         wellDone: item.wellDone || [],
         toImprove: item.toImprove || [],
         cvMetrics: item.cvMetrics || { opening: 'Optimal', rounding: 'Good' },
+        evidence: item.evidence || { transcriptConfidence: 'limited', visualConfidence: 'not assessed' },
         timestamp: Date.now()
       });
     });
@@ -95,7 +95,7 @@ const StorageManager = {
 
     let mouthOpeningIssues = 0;
     let lipRoundingIssues = 0;
-    let mouthStabilityIssues = 0;
+    let visualAssessments = 0;
     let totalAttempts = history.length;
 
     history.forEach(entry => {
@@ -127,7 +127,7 @@ const StorageManager = {
       if (entry.cvMetrics) {
         if (entry.cvMetrics.opening && entry.cvMetrics.opening.toLowerCase().includes('wide')) mouthOpeningIssues++;
         if (entry.cvMetrics.rounding && entry.cvMetrics.rounding.toLowerCase().includes('round')) lipRoundingIssues++;
-        if (entry.cvMetrics.stability && entry.cvMetrics.stability.toLowerCase().includes('stable')) mouthStabilityIssues++;
+        if (entry.evidence && entry.evidence.visualConfidence === 'good') visualAssessments++;
       }
     });
 
@@ -168,10 +168,29 @@ const StorageManager = {
       improvedWords: improvedWords.slice(0, 5), // top 5
       challenges: sortedChallenges.slice(0, 3), // top 3
       weeklyTrend: weeklyData,
-      mouthOpeningPct: totalAttempts > 0 ? Math.round(((totalAttempts - mouthOpeningIssues) / totalAttempts) * 100) : 100,
-      lipRoundingPct: totalAttempts > 0 ? Math.round(((totalAttempts - lipRoundingIssues) / totalAttempts) * 100) : 100,
-      mouthStabilityPct: totalAttempts > 0 ? Math.round(((totalAttempts - mouthStabilityIssues) / totalAttempts) * 100) : 100
+      mouthOpeningPct: totalAttempts > 0 ? Math.round(((totalAttempts - mouthOpeningIssues) / totalAttempts) * 100) : 0,
+      lipRoundingPct: totalAttempts > 0 ? Math.round(((totalAttempts - lipRoundingIssues) / totalAttempts) * 100) : 0,
+      visualAssessmentPct: totalAttempts > 0 ? Math.round((visualAssessments / totalAttempts) * 100) : 0,
+      categoryProgress: this.getCategoryProgress(history),
+      recentAttempts: history.slice(-12).reverse()
     };
+  },
+
+  getCategoryProgress(history) {
+    const categories = Object.keys(VocabularyDatabase.WORDS_BY_CATEGORY);
+    return categories.map(category => {
+      const attempts = history.filter(item => item.category === category);
+      const recent = attempts.slice(-3);
+      const average = attempts.length ? Math.round(attempts.reduce((sum, item) => sum + item.score, 0) / attempts.length) : 0;
+      const clearRecent = recent.length === 3 && recent.every(item => item.score >= 85);
+      return {
+        category,
+        attempts: attempts.length,
+        average,
+        mastered: attempts.length >= 5 && clearRecent && average >= 80,
+        progress: Math.min(100, Math.round(((Math.min(attempts.length, 5) / 5) * 55) + ((recent.filter(item => item.score >= 85).length / 3) * 45)))
+      };
+    });
   },
 
   // Generates 4 weeks of trend scores
@@ -180,8 +199,7 @@ const StorageManager = {
     const weeklyCounts = [0, 0, 0, 0];
     
     if (history.length === 0) {
-      // Mock starting trend for visual appeal on first load
-      return [65, 72, 78, 84];
+      return [0, 0, 0, 0];
     }
 
     const now = Date.now();
@@ -205,7 +223,7 @@ const StorageManager = {
         results.push(Math.round(weeklySums[i] / weeklyCounts[i]));
       } else {
         // Fallback or baseline
-        results.push(i === 0 ? 60 : results[i - 1] || 70);
+        results.push(i === 0 ? 0 : results[i - 1]);
       }
     }
     return results;

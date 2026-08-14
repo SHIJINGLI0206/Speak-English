@@ -51,7 +51,6 @@ const App = {
       settingsDrawer: document.getElementById('settings-drawer'),
       closeSettingsBtn: document.getElementById('close-settings-btn'),
       difficultySelect: document.getElementById('difficulty-select'),
-      geminiKeyInput: document.getElementById('gemini-key-input'),
       resetHistoryBtn: document.getElementById('reset-history-btn'),
 
       // Practice Intro Elements
@@ -73,7 +72,13 @@ const App = {
       cardDiff: document.getElementById('card-diff'),
       cardWord: document.getElementById('card-word'),
       cardIpa: document.getElementById('card-ipa'),
+      cardMasteryStatus: document.getElementById('card-mastery-status'),
       listenWordBtn: document.getElementById('listen-word-btn'),
+      referenceSound: document.getElementById('reference-sound'),
+      referenceCue: document.getElementById('reference-cue'),
+      avatarMouth: document.getElementById('avatar-mouth'),
+      avatarTeeth: document.getElementById('avatar-teeth'),
+      avatarTongue: document.getElementById('avatar-tongue'),
       
       // Camera / CV Elements
       webcamFeed: document.getElementById('webcam-feed'),
@@ -113,7 +118,12 @@ const App = {
       sumAvgScore: document.getElementById('sum-avg-score'),
       improvedWordsTbody: document.getElementById('improved-words-tbody'),
       summaryChallengesList: document.getElementById('summary-challenges-list'),
-      summaryArticulationList: document.getElementById('summary-articulation-list')
+      summaryArticulationList: document.getElementById('summary-articulation-list'),
+      levelReadinessTitle: document.getElementById('level-readiness-title'),
+      levelReadinessCopy: document.getElementById('level-readiness-copy'),
+      levelReadinessPct: document.getElementById('level-readiness-pct'),
+      soundMasteryList: document.getElementById('sound-mastery-list'),
+      attemptHistory: document.getElementById('attempt-history')
     };
   },
 
@@ -128,7 +138,6 @@ const App = {
     
     // Save Settings on Input
     this.nodes.difficultySelect.addEventListener('change', () => this.saveCurrentSettings());
-    this.nodes.geminiKeyInput.addEventListener('input', () => this.saveCurrentSettings());
     
     // Reset Data
     this.nodes.resetHistoryBtn.addEventListener('click', () => this.handleDataReset());
@@ -194,14 +203,12 @@ const App = {
   loadSettings() {
     const settings = StorageManager.getSettings();
     this.nodes.difficultySelect.value = settings.difficulty || 'adaptive';
-    this.nodes.geminiKeyInput.value = settings.geminiKey || '';
   },
 
   // Save inputs to storage
   saveCurrentSettings() {
     const settings = StorageManager.getSettings();
     settings.difficulty = this.nodes.difficultySelect.value;
-    settings.geminiKey = this.nodes.geminiKeyInput.value;
     StorageManager.saveSettings(settings);
     this.refreshIntroScreen();
   },
@@ -282,6 +289,12 @@ const App = {
     this.nodes.cardWord.textContent = wordData.word;
     this.nodes.cardIpa.textContent = wordData.ipa;
     this.nodes.cardCategory.textContent = wordData.category;
+    this.updateReferenceAnimation(wordData);
+    const categoryProgress = VocabularyDatabase.getCategoryProgress(StorageManager.getPracticeHistory(), wordData.difficulty)
+      .find(item => item.category === wordData.category);
+    this.nodes.cardMasteryStatus.textContent = categoryProgress && categoryProgress.mastered
+      ? `${wordData.category} is mastered. Maintain it while the next sound develops.`
+      : `${wordData.category}: ${categoryProgress ? categoryProgress.attempts : 0}/5 evidence attempts. Stay here until the latest 3 are clear.`;
     
     // Capitalize difficulty string
     const diffText = wordData.difficulty.charAt(0).toUpperCase() + wordData.difficulty.slice(1);
@@ -351,7 +364,7 @@ const App = {
       // 2. Start camera as a secondary, non-blocking enhancement.
       //    We don't gate the recording flow on camera success.
       this.nodes.cameraPlaceholder.classList.add('hidden');
-      MouthTracker.startCamera(this.nodes.webcamFeed, this.nodes.faceMeshOverlay)
+      MouthTracker.startCamera(this.nodes.webcamFeed, this.nodes.faceMeshOverlay, cardData.category)
         .then(camSuccess => {
           if (!camSuccess) {
             // Camera failed but speech is still running — silently show placeholder
@@ -377,6 +390,7 @@ const App = {
 
   // Triggered when recording completes and feedback generates
   handlePracticeCompleted(report) {
+    const visualMetrics = MouthTracker.getLatestMetrics();
     // Stop camera track
     MouthTracker.stopCamera();
     this.resetPracticeControls();
@@ -385,13 +399,21 @@ const App = {
     const wordIndex = this.state.currentWordIndex;
     const cardData = this.state.currentSessionWords[wordIndex];
 
+    report.cvMetrics = { opening: visualMetrics.opening, rounding: visualMetrics.rounding, tip: visualMetrics.tip };
+    report.evidence = {
+      transcriptConfidence: report.transcription === '[Inaudible]' ? 'limited' : 'available',
+      visualConfidence: visualMetrics.confidence
+    };
+    if (visualMetrics.confidence === 'good') report.wellDone = [...report.wellDone, 'Visible-mouth landmarks were captured clearly.'];
+
     this.state.sessionResults.push({
       ...cardData,
       score: report.score,
       transcription: report.transcription,
       wellDone: report.wellDone,
       toImprove: report.toImprove,
-      cvMetrics: report.cvMetrics
+      cvMetrics: report.cvMetrics,
+      evidence: report.evidence
     });
 
     // Populate Report Overlay sheet
@@ -490,6 +512,23 @@ const App = {
     this.refreshIntroScreen();
   },
 
+  updateReferenceAnimation(wordData) {
+    const config = {
+      'TH Sounds': { rx: 31, ry: 10, teeth: false, tongue: true, sound: 'Reference: steady airflow for TH', cue: 'Teaching illustration: show a small tongue tip only for a deliberate TH pose.' },
+      'R Sounds': { rx: 19, ry: 14, teeth: false, tongue: false, sound: 'Reference: relaxed lips, focused R shape', cue: 'The camera checks visible lip shape, not hidden tongue position.' },
+      'L Sounds': { rx: 29, ry: 9, teeth: true, tongue: true, sound: 'Reference: light L contact and release', cue: 'Use the illustration to learn L; the live camera does not infer hidden tongue contact.' },
+      'V/W Sounds': { rx: 14, ry: 15, teeth: true, tongue: false, sound: 'Reference: watch lip rounding and teeth contact', cue: 'Copy W rounding or V teeth-to-lip contact before you speak.' },
+      'Final Consonants': { rx: 26, ry: 7, teeth: false, tongue: false, sound: 'Reference: finish the word cleanly', cue: 'Keep the final mouth movement visible; release the ending rather than swallowing it.' },
+      'Vowel Sounds': { rx: 34, ry: 18, teeth: false, tongue: false, sound: 'Reference: open, stable vowel shape', cue: 'Hold the vowel shape for one beat, then say the whole word naturally.' }
+    }[wordData.category];
+    this.nodes.referenceSound.textContent = config.sound;
+    this.nodes.referenceCue.textContent = config.cue;
+    this.nodes.avatarMouth.setAttribute('rx', config.rx);
+    this.nodes.avatarMouth.setAttribute('ry', config.ry);
+    this.nodes.avatarTeeth.classList.toggle('hidden', !config.teeth);
+    this.nodes.avatarTongue.classList.toggle('hidden', !config.tongue);
+  },
+
   // --- Monthly Review View Logic ---
   refreshMonthlyReview() {
     const summary = StorageManager.getMonthlySummary();
@@ -498,6 +537,21 @@ const App = {
     this.nodes.sumDaysActive.textContent = summary.daysActive;
     this.nodes.sumWordsCount.textContent = summary.totalAttempts; // Show total completed reviews
     this.nodes.sumAvgScore.textContent = `${summary.averageScore}%`;
+
+    const activeLevel = VocabularyDatabase.computeAdaptiveDifficulty(StorageManager.getPracticeHistory());
+    const activeProgress = VocabularyDatabase.getCategoryProgress(StorageManager.getPracticeHistory(), activeLevel);
+    const mastered = activeProgress.filter(item => item.mastered).length;
+    const readiness = Math.round((mastered / activeProgress.length) * 100);
+    const next = activeLevel === 'beginner' ? 'Intermediate' : activeLevel === 'intermediate' ? 'Advanced' : 'Career speaking';
+    this.nodes.levelReadinessTitle.textContent = `${activeLevel[0].toUpperCase() + activeLevel.slice(1)} sound mastery`;
+    this.nodes.levelReadinessCopy.textContent = mastered === activeProgress.length
+      ? `All core sounds are stable. ${next} practice is available.`
+      : `${mastered}/${activeProgress.length} sound groups mastered. ${next} remains locked until each group meets the evidence gate.`;
+    this.nodes.levelReadinessPct.textContent = `${readiness}%`;
+    this.nodes.soundMasteryList.innerHTML = activeProgress.map(item => `
+      <div class="sound-mastery-row"><span>${item.category}</span><strong>${item.mastered ? 'MASTERED' : `${item.attempts}/5 attempts · ${item.average || '—'}%`}</strong>
+        <div class="sound-progress"><span style="width:${item.progress}%"></span></div>
+      </div>`).join('');
 
     // Draw Improved Words Table
     if (summary.improvedWords.length > 0) {
@@ -537,10 +591,17 @@ const App = {
 
     // Articulation highlights based on CV scores
     this.nodes.summaryArticulationList.innerHTML = `
-      <li>Mouth opening stability score: <strong>${summary.mouthOpeningPct}%</strong> of attempts match target grid metrics.</li>
-      <li>Lip rounding tracking consistency: <strong>${summary.lipRoundingPct}%</strong> of vowel triggers are properly shaped.</li>
-      <li>Stability of tongue placement: <strong>${summary.mouthStabilityPct}%</strong> match sound duration constraints.</li>
+      <li>Visible-mouth evidence was available on <strong>${summary.visualAssessmentPct}%</strong> of recorded attempts.</li>
+      <li>Mouth opening check: <strong>${summary.mouthOpeningPct}%</strong> of attempts avoided a wide-opening warning.</li>
+      <li>Lip rounding check: <strong>${summary.lipRoundingPct}%</strong> of attempts avoided a rounding warning.</li>
     `;
+
+    this.nodes.attemptHistory.innerHTML = summary.recentAttempts.length ? summary.recentAttempts.map(item => `
+      <div class="attempt-row"><strong>${item.word}</strong><strong>${item.score}%</strong>
+        <span class="attempt-meta">Heard: ${item.transcription || '[not captured]'} · Visual: ${(item.evidence && item.evidence.visualConfidence) || 'not assessed'}</span>
+        <span class="attempt-meta">${new Date(item.timestamp).toLocaleDateString()}</span>
+        <span class="attempt-focus">Focus: ${(item.toImprove || ['No focus captured.'])[0]}</span>
+      </div>`).join('') : '<p class="view-subtitle">Your detailed attempts will appear after your first practice session.</p>';
 
     // Render Weekly Score Chart
     this.drawChart(summary.weeklyTrend);
@@ -614,7 +675,7 @@ const App = {
             }
           },
           y: {
-            min: 40,
+            min: 0,
             max: 100,
             grid: {
               color: 'rgba(255, 255, 255, 0.04)'

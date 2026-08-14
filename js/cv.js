@@ -1,260 +1,128 @@
 /**
- * Computer Vision Mouth Tracker for SpeakUp
- * Accesses camera stream, analyzes audio amplitudes, and renders an 
- * interactive neon facial grid and mouth landmark wireframe on canvas.
+ * On-device visible articulation coach.
+ * MediaPipe Face Mesh runs in the browser. It measures only visible lip/face
+ * evidence; it never claims to infer hidden tongue positions.
  */
-
 const MouthTracker = {
-  video: null,
-  canvas: null,
-  ctx: null,
-  stream: null,
-  audioCtx: null,
-  analyser: null,
-  animationId: null,
-  volume: 0,
-  isTracking: false,
+  video: null, canvas: null, ctx: null, stream: null, faceMesh: null,
+  animationId: null, isTracking: false, latestMetrics: null,
 
-  async startCamera(videoElement, canvasElement) {
+  async startCamera(videoElement, canvasElement, category) {
+    this.stopCamera();
+    this.latestMetrics = null;
     this.video = videoElement;
     this.canvas = canvasElement;
     this.ctx = this.canvas.getContext('2d');
-    this.isTracking = true;
-
-    // Resize canvas to match bounds
-    this.resizeCanvas();
-    window.addEventListener('resize', this.handleResize);
-
+    this.category = category;
     try {
-      // 1. Get webcam stream
       this.stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: 640, height: 480 }
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } }
       });
-      
       this.video.srcObject = this.stream;
+      await this.video.play();
       this.video.style.display = 'block';
-
-      // 2. Setup Audio Analyser using Mic
-      this.setupAudioAnalyser();
-
-      // 3. Start render loop
-      this.tick();
-      
+      this.resizeCanvas();
+      window.addEventListener('resize', this.resizeCanvasBound = () => this.resizeCanvas());
+      this.isTracking = true;
+      if (window.FaceMesh) this.setupFaceMesh();
+      else this.drawStatus('Camera active — visual landmarks unavailable offline');
       return true;
-    } catch (err) {
-      console.error("Camera access failed", err);
-      this.isTracking = false;
+    } catch (error) {
+      console.warn('Camera access failed', error);
+      this.stopCamera();
       return false;
     }
   },
 
-  stopCamera() {
-    this.isTracking = false;
-    
-    if (this.animationId) {
-      cancelAnimationFrame(this.animationId);
-      this.animationId = null;
-    }
-
-    if (this.stream) {
-      this.stream.getTracks().forEach(track => track.stop());
-      this.stream = null;
-    }
-
-    if (this.video) {
-      this.video.srcObject = null;
-    }
-
-    if (this.audioCtx && this.audioCtx.state !== 'closed') {
-      this.audioCtx.close();
-      this.audioCtx = null;
-    }
-
-    window.removeEventListener('resize', this.handleResize);
-    this.clearCanvas();
+  setupFaceMesh() {
+    this.faceMesh = new FaceMesh({ locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` });
+    this.faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+    this.faceMesh.onResults(results => this.onResults(results));
+    const process = async () => {
+      if (!this.isTracking) return;
+      if (this.video.readyState >= 2) await this.faceMesh.send({ image: this.video });
+      this.animationId = requestAnimationFrame(process);
+    };
+    process();
   },
 
-  handleResize: () => {
-    MouthTracker.resizeCanvas();
+  onResults(results) {
+    this.resizeCanvas();
+    const landmarks = results.multiFaceLandmarks && results.multiFaceLandmarks[0];
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    if (!landmarks) {
+      this.latestMetrics = { confidence: 'limited', opening: 'Not assessed', rounding: 'Not assessed', tip: 'Keep your full face in the guide so visible-mouth coaching can start.' };
+      this.drawStatus('Face not found — move into the guide');
+      return;
+    }
+    const metrics = this.measureLandmarks(landmarks);
+    this.latestMetrics = metrics;
+    this.drawLips(landmarks, metrics);
+  },
+
+  measureLandmarks(points) {
+    const p = index => points[index];
+    const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    // Face Mesh outer mouth corners 61/291; upper/lower inner lip 13/14.
+    const width = distance(p(61), p(291));
+    const opening = distance(p(13), p(14));
+    const ratio = width ? opening / width : 0;
+    const centered = p(1).x > 0.18 && p(1).x < 0.82 && p(1).y > 0.12 && p(1).y < 0.72;
+    const expectedWide = this.category === 'Vowel Sounds';
+    const expectedRound = this.category === 'V/W Sounds';
+    const openingLabel = ratio > 0.23 ? 'Open' : ratio > 0.12 ? 'Moderate' : 'Narrow';
+    const roundingLabel = width < 0.17 ? 'Rounded' : 'Relaxed';
+    let tip = 'Keep your face still and copy the reference mouth movement.';
+    if (!centered) tip = 'Move closer and centre your face for a reliable visible-mouth check.';
+    else if (expectedWide && ratio < 0.16) tip = 'For this vowel drill, open your jaw a little wider than your normal speaking shape.';
+    else if (expectedRound && width > 0.22) tip = 'For this lip-shape drill, bring your lip corners inward before you speak.';
+    else if (this.category === 'TH Sounds') tip = 'For TH, use the reference illustration; the camera can only confirm a visible tongue tip, not hidden tongue position.';
+    return { confidence: centered ? 'good' : 'limited', opening: openingLabel, rounding: roundingLabel, tip, ratio: Number(ratio.toFixed(3)) };
+  },
+
+  drawLips(points, metrics) {
+    const w = this.canvas.width, h = this.canvas.height;
+    const map = point => ({ x: (1 - point.x) * w, y: point.y * h });
+    const outer = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146].map(index => map(points[index]));
+    const inner = [78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308, 324, 318, 402, 317, 14, 87, 178, 88, 95].map(index => map(points[index]));
+    const drawPath = (path, color, lineWidth) => {
+      this.ctx.beginPath(); path.forEach((point, index) => index ? this.ctx.lineTo(point.x, point.y) : this.ctx.moveTo(point.x, point.y)); this.ctx.closePath();
+      this.ctx.strokeStyle = color; this.ctx.lineWidth = lineWidth; this.ctx.stroke();
+    };
+    drawPath(outer, metrics.confidence === 'good' ? '#a78bfa' : '#fbbf24', 2.4);
+    drawPath(inner, '#34d399', 1.5);
+    this.ctx.fillStyle = 'rgba(0,0,0,.62)'; this.ctx.fillRect(10, 10, 152, 27);
+    this.ctx.fillStyle = '#fff'; this.ctx.font = "600 10px Inter, sans-serif";
+    this.ctx.fillText(`VISIBLE MOUTH: ${metrics.confidence.toUpperCase()}`, 17, 28);
+  },
+
+  drawStatus(message) {
+    if (!this.ctx || !this.canvas) return;
+    this.ctx.fillStyle = 'rgba(0,0,0,.55)'; this.ctx.fillRect(10, 10, Math.min(this.canvas.width - 20, 250), 30);
+    this.ctx.fillStyle = '#fff'; this.ctx.font = "600 10px Inter, sans-serif"; this.ctx.fillText(message, 17, 29);
   },
 
   resizeCanvas() {
-    if (this.canvas) {
-      const rect = this.canvas.parentElement.getBoundingClientRect();
-      this.canvas.width = rect.width;
-      this.canvas.height = rect.height;
+    if (!this.canvas || !this.canvas.parentElement) return;
+    const rect = this.canvas.parentElement.getBoundingClientRect();
+    if (this.canvas.width !== Math.round(rect.width) || this.canvas.height !== Math.round(rect.height)) {
+      this.canvas.width = Math.round(rect.width); this.canvas.height = Math.round(rect.height);
     }
   },
 
-  clearCanvas() {
-    if (this.ctx && this.canvas) {
-      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    }
+  getLatestMetrics() {
+    return this.latestMetrics || { confidence: 'not assessed', opening: 'Not assessed', rounding: 'Not assessed', tip: 'Camera evidence was not available for this attempt.' };
   },
 
-  async setupAudioAnalyser() {
-    try {
-      const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      this.audioCtx = new AudioContextClass();
-      const source = this.audioCtx.createMediaStreamSource(audioStream);
-      this.analyser = this.audioCtx.createAnalyser();
-      this.analyser.fftSize = 256;
-      source.connect(this.analyser);
-    } catch (e) {
-      console.warn("Could not bind audio analyzer for facial grid vibration", e);
-    }
-  },
-
-  tick() {
-    if (!this.isTracking) return;
-
-    // Get current volume / amplitude
-    if (this.analyser) {
-      const bufferLength = this.analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-      this.analyser.getByteFrequencyData(dataArray);
-      
-      let sum = 0;
-      for (let i = 0; i < bufferLength; i++) {
-        sum += dataArray[i];
-      }
-      // Normalize volume to a 0-1 scale
-      const rawVol = sum / bufferLength;
-      this.volume = Math.min(rawVol / 60, 1.0); // caps at 1.0
-    }
-
-    this.drawOverlay();
-    this.animationId = requestAnimationFrame(() => this.tick());
-  },
-
-  drawOverlay() {
-    const w = this.canvas.width;
-    const h = this.canvas.height;
-    const ctx = this.ctx;
-
-    ctx.clearRect(0, 0, w, h);
-
-    // Center of canvas
-    const cx = w / 2;
-    const cy = h / 2;
-
-    // Pulse factor based on voice volume
-    const pulse = this.volume * 25; 
-    
-    // 1. Draw Face Oval Boundary Guide
-    ctx.strokeStyle = 'rgba(139, 92, 246, 0.4)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([6, 6]);
-    ctx.beginPath();
-    // Normal head height approx 130px, width 100px
-    ctx.ellipse(cx, cy - 10, 85, 110, 0, 0, 2 * Math.PI);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // Bounding Box corners
-    ctx.strokeStyle = 'rgba(99, 102, 241, 0.6)';
-    ctx.lineWidth = 2.5;
-    const boxW = 120;
-    const boxH = 150;
-    const bx = cx - boxW/2;
-    const by = cy - 10 - boxH/2;
-
-    // Top-Left corner
-    ctx.beginPath(); ctx.moveTo(bx, by + 15); ctx.lineTo(bx, by); ctx.lineTo(bx + 15, by); ctx.stroke();
-    // Top-Right corner
-    ctx.beginPath(); ctx.moveTo(bx + boxW, by + 15); ctx.lineTo(bx + boxW, by); ctx.lineTo(bx + boxW - 15, by); ctx.stroke();
-    // Bottom-Left corner
-    ctx.beginPath(); ctx.moveTo(bx, by + boxH - 15); ctx.lineTo(bx, by + boxH); ctx.lineTo(bx + 15, by + boxH); ctx.stroke();
-    // Bottom-Right corner
-    ctx.beginPath(); ctx.moveTo(bx + boxW, by + boxH - 15); ctx.lineTo(bx + boxW, by + boxH); ctx.lineTo(bx + boxW - 15, by + boxH); ctx.stroke();
-
-    // 2. Draw Mouth Area Box (Lower third of face)
-    const mx = cx;
-    const my = cy + 40; // Mouth center offset
-    
-    ctx.strokeStyle = 'rgba(16, 185, 129, 0.5)';
-    ctx.lineWidth = 1.2;
-    ctx.strokeRect(mx - 40, my - 25, 80, 50);
-
-    // Mouth scan line
-    const scanY = my - 25 + ((Date.now() / 15) % 50);
-    ctx.strokeStyle = 'rgba(16, 185, 129, 0.25)';
-    ctx.beginPath();
-    ctx.moveTo(mx - 40, scanY);
-    ctx.lineTo(mx + 40, scanY);
-    ctx.stroke();
-
-    // 3. Draw Mouth/Lip Landmark Mesh (Neon vertices)
-    // We simulate 8 outer points and 4 inner points
-    // Outer lips width 46px, height dynamically scales with volume
-    const lipW = 40 + (this.volume * 10);
-    const lipH = 8 + pulse;
-
-    const outerPoints = [
-      { x: mx - lipW, y: my },                  // Left corner
-      { x: mx - lipW/2, y: my - lipH/2 - 2 },   // Upper Left
-      { x: mx, y: my - lipH/2 - 5 },            // Upper Mid
-      { x: mx + lipW/2, y: my - lipH/2 - 2 },   // Upper Right
-      { x: mx + lipW, y: my },                  // Right corner
-      { x: mx + lipW/2, y: my + lipH/2 + 2 },   // Lower Right
-      { x: mx, y: my + lipH/2 + 5 },            // Lower Mid
-      { x: mx - lipW/2, y: my + lipH/2 + 2 }    // Lower Left
-    ];
-
-    const innerPoints = [
-      { x: mx - lipW * 0.7, y: my },
-      { x: mx, y: my - lipH * 0.3 },
-      { x: mx + lipW * 0.7, y: my },
-      { x: mx, y: my + lipH * 0.3 }
-    ];
-
-    // Draw Outer Lip lines
-    ctx.strokeStyle = 'var(--accent-purple)';
-    ctx.lineWidth = 2;
-    ctx.shadowBlur = 8;
-    ctx.shadowColor = 'var(--accent-purple-glow)';
-    ctx.beginPath();
-    ctx.moveTo(outerPoints[0].x, outerPoints[0].y);
-    for (let i = 1; i < outerPoints.length; i++) {
-      ctx.lineTo(outerPoints[i].x, outerPoints[i].y);
-    }
-    ctx.closePath();
-    ctx.stroke();
-
-    // Draw Inner Lip lines
-    ctx.strokeStyle = 'var(--accent-indigo)';
-    ctx.lineWidth = 1.5;
-    ctx.shadowColor = 'rgba(99, 102, 241, 0.4)';
-    ctx.beginPath();
-    ctx.moveTo(innerPoints[0].x, innerPoints[0].y);
-    for (let i = 1; i < innerPoints.length; i++) {
-      ctx.lineTo(innerPoints[i].x, innerPoints[i].y);
-    }
-    ctx.closePath();
-    ctx.stroke();
-    ctx.shadowBlur = 0; // reset shadow
-
-    // Draw mesh junction dots
-    ctx.fillStyle = '#fff';
-    [...outerPoints, ...innerPoints].forEach(pt => {
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, 2, 0, 2 * Math.PI);
-      ctx.fill();
-    });
-
-    // 4. Status overlay logs
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.font = "bold 9px 'Outfit', sans-serif";
-    ctx.fillText("CV: FACE MESH ACTIVE", bx + 6, by + 18);
-    
-    // Dynamic opening level display
-    const openingIndex = (lipH / 25).toFixed(2);
-    ctx.fillStyle = 'var(--accent-green)';
-    ctx.fillText(`OPENING INDEX: ${openingIndex}`, bx + 6, by + boxH - 12);
-    
-    ctx.fillStyle = 'var(--accent-indigo)';
-    const roundingText = this.volume > 0.45 ? "ROUNDING: HIGH" : "ROUNDING: NORMAL";
-    ctx.fillText(roundingText, bx + boxW - 86, by + boxH - 12);
+  stopCamera() {
+    this.isTracking = false;
+    if (this.animationId) cancelAnimationFrame(this.animationId);
+    this.animationId = null;
+    if (this.stream) this.stream.getTracks().forEach(track => track.stop());
+    this.stream = null;
+    if (this.video) this.video.srcObject = null;
+    if (this.resizeCanvasBound) window.removeEventListener('resize', this.resizeCanvasBound);
+    this.resizeCanvasBound = null;
+    if (this.ctx && this.canvas) this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }
 };

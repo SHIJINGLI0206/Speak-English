@@ -236,193 +236,38 @@ const VocabularyDatabase = {
 
   // Main generator function
   generateDailyWords(history, settings) {
-    // 1. First Day Experience
-    if (!history || history.length === 0) {
-      return {
-        focus: "Establish your general pronunciation benchmark. Practicing vowels, final consonants, and liquid R/L sounds.",
-        difficulty: "beginner",
-        words: this.FIRST_DAY_WORDS.map(word => ({
-          word,
-          ipa: this.IPA_DICTIONARY[word] || "",
-          category: this.getWordCategory(word),
-          difficulty: "beginner"
-        }))
-      };
-    }
-
-    // Determine current level
-    let targetLevel = settings.difficulty || 'adaptive';
-    if (targetLevel === 'adaptive') {
-      targetLevel = this.computeAdaptiveDifficulty(history);
-    }
-
-    // 2. Analyze weak categories
-    const categoryScores = {};
-    const categoryCounts = {};
-    
-    // Seed
-    Object.keys(this.WORDS_BY_CATEGORY).forEach(cat => {
-      categoryScores[cat] = 0;
-      categoryCounts[cat] = 0;
-    });
-
-    history.forEach(entry => {
-      const cat = entry.category;
-      if (categoryScores[cat] !== undefined) {
-        categoryScores[cat] += entry.score;
-        categoryCounts[cat]++;
-      }
-    });
-
-    // Find weakest category
-    let weakestCategory = "TH Sounds";
-    let lowestAvg = 100;
-    let hasData = false;
-
-    Object.keys(categoryScores).forEach(cat => {
-      if (categoryCounts[cat] > 0) {
-        hasData = true;
-        const avg = categoryScores[cat] / categoryCounts[cat];
-        if (avg < lowestAvg) {
-          lowestAvg = avg;
-          weakestCategory = cat;
-        }
-      }
-    });
-
-    // If no data on categories yet, pick TH Sounds or randomly select
-    if (!hasData) {
-      weakestCategory = "TH Sounds";
-    }
-
-    // 3. Select 60% Targeted Improvement Words (usually 6 words out of 10)
-    const targetCount = 10;
-    const poolTargeted = this.WORDS_BY_CATEGORY[weakestCategory][targetLevel] || [];
-    const practicedWordsSet = new Set(history.map(h => h.word));
-    
-    // Sort pool to pick unpracticed first
-    let targetedSelection = poolTargeted
-      .filter(w => !practicedWordsSet.has(w))
-      .slice(0, 6);
-
-    // If we run out of unpracticed targeted words, backfill from practiced ones (worst score first)
-    if (targetedSelection.length < 6) {
-      const practicedTargeted = history
-        .filter(h => h.category === weakestCategory && h.difficulty === targetLevel)
-        .sort((a, b) => a.score - b.score)
-        .map(h => h.word);
-      
-      const uniquePracticedTargeted = [...new Set(practicedTargeted)];
-      for (const w of uniquePracticedTargeted) {
-        if (targetedSelection.length >= 6) break;
-        if (!targetedSelection.includes(w)) {
-          targetedSelection.push(w);
-        }
-      }
-    }
-
-    // 4. Select 20% Review Words (2 words, score < 80)
-    const reviewPool = history
-      .filter(h => h.score < 80)
-      .sort((a, b) => a.score - b.score) // lowest score first
-      .map(h => h.word);
-    
-    const uniqueReviewPool = [...new Set(reviewPool)];
-    const reviewSelection = [];
-    for (const w of uniqueReviewPool) {
-      if (reviewSelection.length >= 2) break;
-      if (!targetedSelection.includes(w)) {
-        reviewSelection.push(w);
-      }
-    }
-
-    // 5. Select 20% New Words (2 words, unpracticed, any category of current level)
-    const allNewPool = [];
-    Object.keys(this.WORDS_BY_CATEGORY).forEach(cat => {
-      this.WORDS_BY_CATEGORY[cat][targetLevel].forEach(w => {
-        if (!practicedWordsSet.has(w) && !targetedSelection.includes(w) && !reviewSelection.includes(w)) {
-          allNewPool.push(w);
-        }
-      });
-    });
-    
-    // Shuffle new pool slightly
-    const shuffledNew = allNewPool.sort(() => 0.5 - Math.random());
-    const newSelection = shuffledNew.slice(0, 2);
-
-    // 6. Assembly & Backfill if we didn't hit 10 items
-    let finalWords = [...targetedSelection, ...reviewSelection, ...newSelection];
-    
-    // Backfill logic
-    if (finalWords.length < targetCount) {
-      const allLevelPool = [];
-      Object.keys(this.WORDS_BY_CATEGORY).forEach(cat => {
-        this.WORDS_BY_CATEGORY[cat][targetLevel].forEach(w => {
-          if (!finalWords.includes(w)) {
-            allLevelPool.push(w);
-          }
-        });
-      });
-
-      const shuffledBackfill = allLevelPool.sort(() => 0.5 - Math.random());
-      for (const w of shuffledBackfill) {
-        if (finalWords.length >= targetCount) break;
-        finalWords.push(w);
-      }
-    }
-
-    // If still short (e.g. advanced pool depleted), fallback to intermediate or beginner
-    if (finalWords.length < targetCount) {
-      const fallbackList = Object.keys(this.IPA_DICTIONARY);
-      for (const w of fallbackList) {
-        if (finalWords.length >= targetCount) break;
-        if (!finalWords.includes(w)) {
-          finalWords.push(w);
-        }
-      }
-    }
-
-    // Map back to card structure
-    const cards = finalWords.map(word => ({
-      word,
-      ipa: this.IPA_DICTIONARY[word] || "/ˈwɝːd/",
-      category: this.getWordCategory(word),
-      difficulty: this.getWordDifficulty(word)
-    }));
-
-    const focusText = `Today's focus: Improve ${weakestCategory} (${this.CATEGORY_FOCUS_DESCRIPTIONS[weakestCategory]}).`;
-
+    const level = settings.difficulty === 'adaptive' || !settings.difficulty ? this.computeAdaptiveDifficulty(history) : settings.difficulty;
+    const progress = this.getCategoryProgress(history, level);
+    const weakest = progress.slice().sort((a, b) => a.progress - b.progress || a.average - b.average)[0];
+    const targetPool = this.WORDS_BY_CATEGORY[weakest.category][level] || this.WORDS_BY_CATEGORY[weakest.category].beginner;
+    const practiced = new Set(history.map(item => item.word));
+    const weakAttempts = history.filter(item => item.category === weakest.category).sort((a, b) => a.score - b.score).map(item => item.word);
+    const ordered = [...new Set([...weakAttempts, ...targetPool.filter(word => !practiced.has(word)), ...targetPool])];
+    const words = ordered.slice(0, 8).map(word => ({ word, ipa: this.IPA_DICTIONARY[word] || '', category: this.getWordCategory(word), difficulty: level }));
     return {
-      focus: focusText,
-      difficulty: targetLevel,
-      words: cards
+      focus: weakest.mastered ? `Maintain ${weakest.category}; the next weakest sound is now the priority.` : `Stay with ${weakest.category} until it is mastered: 5 attempts, latest 3 at 85%+, overall average 80%+.`,
+      difficulty: level,
+      weakestCategory: weakest.category,
+      mastery: weakest,
+      words
     };
   },
 
-  // Computes adaptive level based on latest averages
+  getCategoryProgress(history, level) {
+    return Object.keys(this.WORDS_BY_CATEGORY).map(category => {
+      const attempts = history.filter(item => item.category === category && item.difficulty === level);
+      const recent = attempts.slice(-3);
+      const average = attempts.length ? Math.round(attempts.reduce((sum, item) => sum + item.score, 0) / attempts.length) : 0;
+      const mastered = attempts.length >= 5 && recent.length === 3 && recent.every(item => item.score >= 85) && average >= 80;
+      return { category, attempts: attempts.length, average, mastered, progress: Math.min(100, Math.round((Math.min(5, attempts.length) / 5) * 55 + (recent.filter(item => item.score >= 85).length / 3) * 45)) };
+    });
+  },
+
   computeAdaptiveDifficulty(history) {
-    if (history.length < 5) return 'beginner';
-    
-    // Get last 5 attempts
-    const lastAttempts = history.slice(-5);
-    const avgScore = lastAttempts.reduce((sum, item) => sum + item.score, 0) / lastAttempts.length;
-
-    // Detect level of latest attempts
-    const latestDiffs = lastAttempts.map(item => item.difficulty);
-    const modeDiff = latestDiffs.sort((a,b) =>
-          latestDiffs.filter(v => v===a).length - latestDiffs.filter(v => v===b).length
-    ).pop();
-
-    if (avgScore > 84) {
-      if (modeDiff === 'beginner') return 'intermediate';
-      if (modeDiff === 'intermediate') return 'advanced';
-      return 'advanced';
-    } else if (avgScore < 66) {
-      if (modeDiff === 'advanced') return 'intermediate';
-      if (modeDiff === 'intermediate') return 'beginner';
-      return 'beginner';
-    }
-    
-    return modeDiff || 'beginner';
+    const beginner = this.getCategoryProgress(history, 'beginner');
+    if (!beginner.every(item => item.mastered)) return 'beginner';
+    const intermediate = this.getCategoryProgress(history, 'intermediate');
+    if (!intermediate.every(item => item.mastered)) return 'intermediate';
+    return 'advanced';
   }
 };

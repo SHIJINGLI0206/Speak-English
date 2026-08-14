@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="SpeakUp">
-  <title>SpeakUp - AI English Pronunciation Coach</title>
+  <title>SpeakUp - English Pronunciation Coach</title>
   <!-- Google Fonts for premium design aesthetics -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -55,7 +55,7 @@
               <div class="welcome-card">
                 <div class="card-day-indicator" id="practice-day-title">Day 1: Initial Baseline Assessment</div>
                 <h2 class="welcome-heading">Ready for your daily practice?</h2>
-                <p class="welcome-sub">Improve your American English pronunciation through AI-guided analysis and mouth articulation tracking.</p>
+                <p class="welcome-sub">Build clear, confident English for New Zealand life and senior-engineer communication.</p>
                 
                 <div class="today-focus-box">
                   <div class="focus-title">💡 Today's Focus</div>
@@ -101,6 +101,7 @@
                 <div class="word-display-container">
                   <h1 class="flashcard-word" id="card-word">water</h1>
                   <p class="flashcard-ipa" id="card-ipa">/ˈwɑː.t̬ɚ/</p>
+                  <p class="mastery-status" id="card-mastery-status">Build the sound with three clear attempts.</p>
                   
                   <button class="listen-button" id="listen-word-btn">
                     <svg class="icon-speaker" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -111,7 +112,23 @@
                   </button>
                 </div>
 
-                <!-- Interactive Media Box (Webcam & Face/Mouth tracking) -->
+                <!-- Reference articulation and live on-device face-landmark coaching -->
+                <div class="articulation-reference" aria-live="polite">
+                  <div class="reference-copy">
+                    <span class="reference-eyebrow">REFERENCE ARTICULATION</span>
+                    <strong id="reference-sound">Listen, then copy the mouth movement.</strong>
+                    <span id="reference-cue">A teaching illustration — not a scan of your tongue.</span>
+                  </div>
+                  <svg class="viseme-avatar" id="viseme-avatar" viewBox="0 0 160 110" aria-label="Animated reference mouth">
+                    <path class="avatar-face" d="M20,12 C38,2 122,2 140,12 L140,78 C128,104 32,104 20,78 Z"></path>
+                    <path class="avatar-nose" d="M80,30 C75,45 75,49 84,50"></path>
+                    <ellipse class="avatar-mouth" id="avatar-mouth" cx="80" cy="72" rx="26" ry="6"></ellipse>
+                    <path class="avatar-teeth hidden" id="avatar-teeth" d="M57,70 Q80,62 103,70 Q80,76 57,70 Z"></path>
+                    <path class="avatar-tongue hidden" id="avatar-tongue" d="M66,76 Q80,67 94,76 Q80,84 66,76 Z"></path>
+                  </svg>
+                </div>
+
+                <!-- Interactive Media Box (Webcam & actual face landmarks) -->
                 <div class="media-container">
                   <!-- Video stream wrapper -->
                   <div class="webcam-wrapper">
@@ -119,7 +136,7 @@
                     <canvas id="face-mesh-overlay" class="face-mesh-canvas"></canvas>
                     <div class="camera-placeholder" id="camera-placeholder">
                       <div class="camera-placeholder-icon">📷</div>
-                      <p>Camera feed will activate for mouth analysis</p>
+                      <p>Camera opens when you practise. Your video stays on this device.</p>
                     </div>
                   </div>
                   
@@ -207,15 +224,15 @@
                       <h4>👄 Articulation Analysis (CV)</h4>
                       <div class="cv-metrics">
                         <div class="metric-row">
-                          <span>Mouth Opening:</span>
-                          <strong id="cv-metric-opening">Optimal</strong>
+                      <span>Mouth Opening:</span>
+                          <strong id="cv-metric-opening">Not assessed</strong>
                         </div>
                         <div class="metric-row">
-                          <span>Lip Rounding:</span>
-                          <strong id="cv-metric-rounding">Good</strong>
+                      <span>Lip Rounding:</span>
+                          <strong id="cv-metric-rounding">Not assessed</strong>
                         </div>
                       </div>
-                      <p class="cv-tip-text" id="feedback-cv-tip">"Open your mouth slightly wider to capture the pure vowel transition."</p>
+                      <p class="cv-tip-text" id="feedback-cv-tip">"Visible-mouth coaching is shown only when the camera confidence is good."</p>
                     </div>
 
                     <!-- Action buttons -->
@@ -262,7 +279,7 @@
           <!-- SCREEN 2: MONTHLY REVIEW -->
           <section id="monthly-review-view" class="page-view">
             <h2 class="view-title">Monthly Progress</h2>
-            <p class="view-subtitle">Pronunciation insights and trends for this month.</p>
+            <p class="view-subtitle">Master sounds first; new levels unlock only after consistent evidence.</p>
 
             <!-- Overall Performance Cards -->
             <div class="monthly-summary-grid">
@@ -280,12 +297,33 @@
               </div>
             </div>
 
+            <div class="readiness-card">
+              <div>
+                <span class="reference-eyebrow">NEXT LEVEL READINESS</span>
+                <h3 id="level-readiness-title">Build your Foundation level</h3>
+                <p id="level-readiness-copy">Complete three clear attempts on each core sound before moving on.</p>
+              </div>
+              <strong id="level-readiness-pct">0%</strong>
+            </div>
+
+            <div class="mastery-card">
+              <h3>Sound mastery</h3>
+              <p class="view-subtitle">A sound is mastered after 5 attempts, with the latest 3 at 85% or higher.</p>
+              <div id="sound-mastery-list" class="sound-mastery-list"></div>
+            </div>
+
             <!-- Score Trend Chart Container -->
             <div class="chart-card">
               <h3>Pronunciation Score Trend</h3>
               <div class="chart-wrapper">
                 <canvas id="score-trend-chart"></canvas>
               </div>
+            </div>
+
+            <div class="table-card">
+              <h3>Recent attempts</h3>
+              <p class="view-subtitle">Low-level evidence: what you said, the single focus, and visible-mouth confidence.</p>
+              <div class="attempt-history" id="attempt-history"></div>
             </div>
 
             <!-- Most Improved Words -->
@@ -356,7 +394,7 @@
           <div class="settings-sheet">
             <div class="drag-handle"></div>
             <div class="settings-header">
-              <h3>Settings & API Config</h3>
+              <h3>Practice settings</h3>
               <button class="close-settings-btn" id="close-settings-btn">✕</button>
             </div>
             
@@ -380,9 +418,9 @@
               </div>
 
               <div class="setting-item">
-                <label for="gemini-key-input">Gemini API Key (Optional)</label>
-                <input type="password" id="gemini-key-input" class="form-input" placeholder="AI evaluation falls back to local if empty">
-                <small class="help-text">Input your key to send real audio packages to the Gemini Voice Model for premium phonetic coach analytics.</small>
+                <label>Private practice by default</label>
+                <div class="badge badge-outline">No API keys are stored in this browser</div>
+                <small class="help-text">Future cloud coaching must use a secure server, never a key entered into this app.</small>
               </div>
 
               <div class="setting-item">
@@ -416,6 +454,9 @@
   </div>
 
   <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/wordGenerator.js"></script>
   <script src="js/voice.js"></script>
