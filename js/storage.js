@@ -11,6 +11,7 @@ const StorageManager = {
   DEFAULT_SETTINGS: {
     difficulty: 'adaptive', // adaptive, beginner, intermediate, advanced
     accent: 'US',
+    apiBaseUrl: '',
     currentDay: 1
   },
 

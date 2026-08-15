@@ -51,6 +51,7 @@ const App = {
       settingsDrawer: document.getElementById('settings-drawer'),
       closeSettingsBtn: document.getElementById('close-settings-btn'),
       difficultySelect: document.getElementById('difficulty-select'),
+      apiBaseUrlInput: document.getElementById('api-base-url-input'),
       resetHistoryBtn: document.getElementById('reset-history-btn'),
 
       // Practice Intro Elements
@@ -138,6 +139,7 @@ const App = {
     
     // Save Settings on Input
     this.nodes.difficultySelect.addEventListener('change', () => this.saveCurrentSettings());
+    this.nodes.apiBaseUrlInput.addEventListener('change', () => this.saveCurrentSettings());
     
     // Reset Data
     this.nodes.resetHistoryBtn.addEventListener('click', () => this.handleDataReset());
@@ -203,12 +205,14 @@ const App = {
   loadSettings() {
     const settings = StorageManager.getSettings();
     this.nodes.difficultySelect.value = settings.difficulty || 'adaptive';
+    this.nodes.apiBaseUrlInput.value = settings.apiBaseUrl || (window.SPEAKUP_CONFIG && window.SPEAKUP_CONFIG.apiBaseUrl) || '';
   },
 
   // Save inputs to storage
   saveCurrentSettings() {
     const settings = StorageManager.getSettings();
     settings.difficulty = this.nodes.difficultySelect.value;
+    settings.apiBaseUrl = this.nodes.apiBaseUrlInput.value.trim().replace(/\/$/, '');
     StorageManager.saveSettings(settings);
     this.refreshIntroScreen();
   },
@@ -402,7 +406,8 @@ const App = {
     report.cvMetrics = { opening: visualMetrics.opening, rounding: visualMetrics.rounding, tip: visualMetrics.tip };
     report.evidence = {
       transcriptConfidence: report.transcription === '[Inaudible]' ? 'limited' : 'available',
-      visualConfidence: visualMetrics.confidence
+      visualConfidence: visualMetrics.confidence,
+      analysisSource: report.evidence && report.evidence.analysisSource || 'Browser clarity fallback'
     };
     if (visualMetrics.confidence === 'good') report.wellDone = [...report.wellDone, 'Visible-mouth landmarks were captured clearly.'];
 

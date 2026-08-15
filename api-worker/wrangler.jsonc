@@ -1,0 +1,19 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "speakup-coach-api",
+	"main": "src/index.js",
+	"compatibility_date": "2026-08-15",
+	"workers_dev": true,
+	"preview_urls": false,
+	"vars": {
+		"ALLOWED_ORIGINS": "https://shijingli0206.github.io",
+		"MAX_ANALYSES_PER_MINUTE": "12"
+	},
+	"kv_namespaces": [
+		{
+			"binding": "RATE_LIMIT",
+			"id": "4e3854c1c15749c5b496810a8ba66a17",
+			"remote": true
+		}
+	]
+}

@@ -20,6 +20,10 @@ const VoiceCoach = {
   _onUpdate: null,
   _transcribedText: '',
   _practiceArgs: null, // { targetWord, targetIpa, category }
+  mediaStream: null,
+  mediaRecorder: null,
+  audioChunks: [],
+  audioBlob: null,
 
   // Detect iOS Safari
   _isIOS() {
@@ -74,6 +78,8 @@ const VoiceCoach = {
       this._onUpdate = onUpdate;
       this._transcribedText = '';
       this._practiceArgs = { targetWord, targetIpa, category };
+      this.audioBlob = null;
+      this.startAudioCapture().catch(error => console.warn('Audio capture unavailable:', error));
       onUpdate('listening');
       return;
     }
@@ -90,9 +96,11 @@ const VoiceCoach = {
     this._onUpdate = onUpdate;
     this._transcribedText = '';
     this._practiceArgs = { targetWord, targetIpa, category };
+    this.audioBlob = null;
+    this.startAudioCapture().catch(error => console.warn('Audio capture unavailable:', error));
 
-    // On iOS we do NOT use MediaRecorder (unsupported). Just capture transcript.
-    // On desktop we could add MediaRecorder, but we skip it here for cross-platform safety.
+    // SpeechRecognition remains a fast local hint. The optional Worker receives the
+    // captured audio after the learner finishes, never an API key from the browser.
 
     this.recognition.onstart = () => {
       onUpdate('listening');
@@ -129,6 +137,7 @@ const VoiceCoach = {
       console.error('recognition.start() failed:', e);
       if (onError) onError('Could not start microphone. Please allow mic access and try again.');
       this.isRecording = false;
+      this.stopAudioCapture();
     }
   },
 
@@ -155,11 +164,71 @@ const VoiceCoach = {
 
     if (onUpdate) onUpdate('analyzing');
 
+    const visualMetrics = typeof MouthTracker !== 'undefined' ? MouthTracker.getLatestMetrics() : {};
+    const visualFrame = typeof MouthTracker !== 'undefined' ? MouthTracker.captureFrame() : '';
+
     // Small delay so the UI can update to "Analyzing..." before heavy work
     setTimeout(async () => {
-      const report = this.evaluateLocally(targetWord, targetIpa, category, transcript);
+      const audio = await this.stopAudioCapture();
+      let report = null;
+      try {
+        report = await this.analyzeWithCloud(audio, targetWord, targetIpa, category, visualMetrics, visualFrame);
+      } catch (error) {
+        console.warn('Cloud analysis unavailable; using local clarity fallback.', error);
+      }
+      report = report || this.evaluateLocally(targetWord, targetIpa, category, transcript);
       setTimeout(() => { if (onComplete) onComplete(report); }, 350);
     }, 200);
+  },
+
+  async startAudioCapture() {
+    if (!navigator.mediaDevices || !window.MediaRecorder) return;
+    this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    const supported = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find(type => MediaRecorder.isTypeSupported(type));
+    this.mediaRecorder = supported ? new MediaRecorder(this.mediaStream, { mimeType: supported }) : new MediaRecorder(this.mediaStream);
+    this.audioChunks = [];
+    this.mediaRecorder.ondataavailable = event => { if (event.data && event.data.size) this.audioChunks.push(event.data); };
+    this.mediaRecorder.start();
+  },
+
+  async stopAudioCapture() {
+    if (!this.mediaRecorder || this.mediaRecorder.state === 'inactive') return this.audioBlob;
+    return new Promise(resolve => {
+      const recorder = this.mediaRecorder;
+      recorder.onstop = () => {
+        this.audioBlob = this.audioChunks.length ? new Blob(this.audioChunks, { type: recorder.mimeType || 'audio/webm' }) : null;
+        if (this.mediaStream) this.mediaStream.getTracks().forEach(track => track.stop());
+        this.mediaStream = null;
+        this.mediaRecorder = null;
+        resolve(this.audioBlob);
+      };
+      recorder.stop();
+    });
+  },
+
+  async analyzeWithCloud(audio, target, ipa, category, visualMetrics, visualFrame) {
+    const savedSettings = typeof StorageManager !== 'undefined' ? StorageManager.getSettings() : {};
+    const apiBaseUrl = savedSettings.apiBaseUrl || (window.SPEAKUP_CONFIG && window.SPEAKUP_CONFIG.apiBaseUrl);
+    if (!apiBaseUrl || !audio || !audio.size) return null;
+    const form = new FormData();
+    const extension = audio.type.includes('mp4') ? 'm4a' : 'webm';
+    form.append('audio', audio, `attempt.${extension}`);
+    form.append('target', target || '');
+    form.append('ipa', ipa || '');
+    form.append('category', category || '');
+    form.append('visualMetrics', JSON.stringify(visualMetrics || {}));
+    if (visualFrame) form.append('visualFrame', visualFrame);
+    const response = await fetch(`${apiBaseUrl.replace(/\/$/, '')}/api/analyze`, { method: 'POST', body: form });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || `Worker request failed (${response.status})`);
+    return {
+      score: payload.score,
+      transcription: payload.transcription || payload.transcript || '[Inaudible]',
+      wellDone: payload.wellDone || ['AI feedback was unavailable for this attempt.'],
+      toImprove: payload.toImprove || ['Try the reference word once more.'],
+      cvMetrics: { opening: payload.opening, rounding: payload.rounding, tip: payload.tip },
+      evidence: { transcriptConfidence: payload.confidence || 'limited', visualConfidence: visualMetrics && visualMetrics.confidence || 'not assessed', analysisSource: payload.analysisSource }
+    };
   },
 
   // Honest local fallback: a transcript clarity check, not phoneme scoring.

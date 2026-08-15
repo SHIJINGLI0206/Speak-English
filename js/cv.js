@@ -114,6 +114,20 @@ const MouthTracker = {
     return this.latestMetrics || { confidence: 'not assessed', opening: 'Not assessed', rounding: 'Not assessed', tip: 'Camera evidence was not available for this attempt.' };
   },
 
+  captureFrame() {
+    if (!this.video || this.video.readyState < 2 || !this.latestMetrics || this.latestMetrics.confidence !== 'good') return '';
+    const sourceWidth = this.video.videoWidth || 0;
+    const sourceHeight = this.video.videoHeight || 0;
+    if (!sourceWidth || !sourceHeight) return '';
+    const targetWidth = Math.min(420, sourceWidth);
+    const targetHeight = Math.round((targetWidth / sourceWidth) * sourceHeight);
+    const snapshot = document.createElement('canvas');
+    snapshot.width = targetWidth;
+    snapshot.height = targetHeight;
+    snapshot.getContext('2d').drawImage(this.video, 0, 0, targetWidth, targetHeight);
+    return snapshot.toDataURL('image/jpeg', 0.62);
+  },
+
   stopCamera() {
     this.isTracking = false;
     if (this.animationId) cancelAnimationFrame(this.animationId);
