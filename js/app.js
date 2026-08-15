@@ -75,11 +75,6 @@ const App = {
       cardIpa: document.getElementById('card-ipa'),
       cardMasteryStatus: document.getElementById('card-mastery-status'),
       listenWordBtn: document.getElementById('listen-word-btn'),
-      referenceSound: document.getElementById('reference-sound'),
-      referenceCue: document.getElementById('reference-cue'),
-      avatarMouth: document.getElementById('avatar-mouth'),
-      avatarTeeth: document.getElementById('avatar-teeth'),
-      avatarTongue: document.getElementById('avatar-tongue'),
       
       // Camera / CV Elements
       webcamFeed: document.getElementById('webcam-feed'),
@@ -293,7 +288,6 @@ const App = {
     this.nodes.cardWord.textContent = wordData.word;
     this.nodes.cardIpa.textContent = wordData.ipa;
     this.nodes.cardCategory.textContent = wordData.category;
-    this.updateReferenceAnimation(wordData);
     const categoryProgress = VocabularyDatabase.getCategoryProgress(StorageManager.getPracticeHistory(), wordData.difficulty)
       .find(item => item.category === wordData.category);
     this.nodes.cardMasteryStatus.textContent = categoryProgress && categoryProgress.mastered
@@ -515,23 +509,6 @@ const App = {
     this.nodes.practiceCompleted.classList.add('hidden');
     this.nodes.practiceIntro.classList.remove('hidden');
     this.refreshIntroScreen();
-  },
-
-  updateReferenceAnimation(wordData) {
-    const config = {
-      'TH Sounds': { rx: 31, ry: 10, teeth: false, tongue: true, sound: 'Reference: steady airflow for TH', cue: 'Teaching illustration: show a small tongue tip only for a deliberate TH pose.' },
-      'R Sounds': { rx: 19, ry: 14, teeth: false, tongue: false, sound: 'Reference: relaxed lips, focused R shape', cue: 'The camera checks visible lip shape, not hidden tongue position.' },
-      'L Sounds': { rx: 29, ry: 9, teeth: true, tongue: true, sound: 'Reference: light L contact and release', cue: 'Use the illustration to learn L; the live camera does not infer hidden tongue contact.' },
-      'V/W Sounds': { rx: 14, ry: 15, teeth: true, tongue: false, sound: 'Reference: watch lip rounding and teeth contact', cue: 'Copy W rounding or V teeth-to-lip contact before you speak.' },
-      'Final Consonants': { rx: 26, ry: 7, teeth: false, tongue: false, sound: 'Reference: finish the word cleanly', cue: 'Keep the final mouth movement visible; release the ending rather than swallowing it.' },
-      'Vowel Sounds': { rx: 34, ry: 18, teeth: false, tongue: false, sound: 'Reference: open, stable vowel shape', cue: 'Hold the vowel shape for one beat, then say the whole word naturally.' }
-    }[wordData.category];
-    this.nodes.referenceSound.textContent = config.sound;
-    this.nodes.referenceCue.textContent = config.cue;
-    this.nodes.avatarMouth.setAttribute('rx', config.rx);
-    this.nodes.avatarMouth.setAttribute('ry', config.ry);
-    this.nodes.avatarTeeth.classList.toggle('hidden', !config.teeth);
-    this.nodes.avatarTongue.classList.toggle('hidden', !config.tongue);
   },
 
   // --- Monthly Review View Logic ---

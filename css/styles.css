@@ -462,27 +462,7 @@ body {
 
 .mastery-status { color: var(--text-muted); font-size: 11px; margin: -4px auto 12px; max-width: 260px; }
 
-.articulation-reference {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 112px;
-  padding: 12px;
-  margin-bottom: 12px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, rgba(99, 102, 241, .18), rgba(139, 92, 246, .08));
-  border: 1px solid rgba(129, 140, 248, .2);
-}
-.reference-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 5px; }
-.reference-copy strong { font-family: var(--font-display); font-size: 13px; }
-.reference-copy span:not(.reference-eyebrow) { color: var(--text-muted); font-size: 10px; line-height: 1.35; }
 .reference-eyebrow { color: #a5b4fc; font-size: 9px; font-weight: 800; letter-spacing: .8px; }
-.viseme-avatar { width: 126px; height: 86px; flex: 0 0 auto; }
-.avatar-face { fill: #dbeafe; stroke: #a5b4fc; stroke-width: 1.5; }
-.avatar-nose { fill: none; stroke: #818cf8; stroke-width: 2; stroke-linecap: round; }
-.avatar-mouth { fill: #160d38; stroke: #6366f1; stroke-width: 2; transform-origin: center; transition: all .18s ease; }
-.avatar-teeth { fill: #fff; stroke: #c7d2fe; stroke-width: .7; }
-.avatar-tongue { fill: #f9a8d4; }
 
 .flashcard-word {
   font-family: var(--font-display);
