@@ -1,4 +1,4 @@
-// Set this after deploying api-worker. It must be a Worker URL, never an API key.
+// Public Worker location only. This is not an API key.
 window.SPEAKUP_CONFIG = {
-  apiBaseUrl: ''
+  apiBaseUrl: 'https://speakup-coach-api.jinglishi0206.workers.dev'
 };

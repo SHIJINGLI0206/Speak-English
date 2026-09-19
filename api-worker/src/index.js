@@ -79,7 +79,7 @@ function extractOutputText(response) {
 async function coach({ target, ipa, category, transcript, visualMetrics, visualFrame }, apiKey) {
   const content = [{
     type: 'input_text',
-    text: `You are SpeakUp, a concise English pronunciation coach for a senior AI engineer in New Zealand.\n\nTarget word: ${target}\nIPA reference: ${ipa}\nPractice category: ${category}\nAudio transcription: ${transcript || '[not captured]'}\nLocal visible-mouth metrics: ${JSON.stringify(visualMetrics)}\n\nUse only the supplied evidence. A transcription match is not proof of perfect pronunciation. Never claim to see hidden tongue positions. If the image or metrics are unclear, use \"Not assessed\" and lower confidence. Give exactly one specific success and one highest-impact next action, each in plain English. Keep the tip under 180 characters.`
+    text: `You are SpeakUp, a concise career-English coach for a senior AI engineer in New Zealand.\n\nTarget (a word or sentence): ${target}\nIPA reference if supplied: ${ipa || '[not supplied]'}\nPractice category: ${category}\nAudio transcription: ${transcript || '[not captured]'}\nLocal visible-mouth metrics: ${JSON.stringify(visualMetrics)}\n\nUse only supplied evidence. A transcription match is not proof of pronunciation accuracy. Do not invent phoneme-level measurements. Never claim to see hidden tongue positions. If image or metrics are unclear, use \"Not assessed\" and lower confidence. Give exactly one specific success and one highest-impact retry action in plain English. Keep the tip under 180 characters. Prefer intelligibility, word stress, rhythm, and clear workplace delivery over imitation of a native accent.`
   }];
   if (visualFrame && visualFrame.startsWith('data:image/')) {
     content.push({ type: 'input_image', image_url: visualFrame, detail: 'low' });
@@ -112,7 +112,7 @@ export default {
     try {
       const form = await request.formData();
       const audio = form.get('audio');
-      const target = String(form.get('target') || '').slice(0, 80);
+      const target = String(form.get('target') || '').slice(0, 280);
       const ipa = String(form.get('ipa') || '').slice(0, 120);
       const category = String(form.get('category') || '').slice(0, 80);
       const visualMetrics = JSON.parse(String(form.get('visualMetrics') || '{}'));
@@ -123,7 +123,7 @@ export default {
 
       const transcript = await transcribeAudio(audio, env.OPENAI_API_KEY);
       const feedback = await coach({ target, ipa, category, transcript, visualMetrics, visualFrame }, env.OPENAI_API_KEY);
-      return json(request, env, { ...feedback, transcript, analysisSource: 'OpenAI transcription + GPT-5.6 Luna' });
+      return json(request, env, { ...feedback, transcript, analysisSource: 'OpenAI transcription + GPT-5.6 Luna', mediaRetention: 'not retained by SpeakUp' });
     } catch (error) {
       console.error('analysis_failed', error.message);
       return json(request, env, { error: 'Analysis failed. Your local practice result was not changed.' }, 502);

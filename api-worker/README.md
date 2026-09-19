@@ -34,7 +34,7 @@ This Worker receives one completed pronunciation attempt, transcribes the audio 
    npm run deploy
    ```
 
-6. Copy the Worker URL Wrangler prints, for example `https://speakup-coach-api.<account>.workers.dev`. In SpeakUp, open **Settings → Secure Coach API URL**, paste it, and save. This URL is safe to store in the browser; it is not a secret.
+6. Copy the Worker URL Wrangler prints, for example `https://speakup-coach-api.<account>.workers.dev`, into `js/runtime-config.js`. The current app also permits an override in Settings. This URL is safe to store in the browser; it is not a secret.
 
 ## Local development
 
@@ -48,6 +48,6 @@ Do not commit `.dev.vars`, API keys, or any other secrets.
 
 ## Privacy and limits
 
-- The browser sends a completed audio attempt and, only when on-device face landmarks are high confidence, one compressed camera frame.
+- The browser sends a completed audio attempt only after the learner turns on Secure Coach. It sends one compressed camera frame only after a separate visual-evidence opt-in.
 - It does not upload continuous video or persist raw audio/video in the Worker.
 - `RATE_LIMIT` defaults to 12 analyses per IP per minute. It is a basic personal-app safeguard; use Cloudflare Access or Turnstile before sharing the app publicly.

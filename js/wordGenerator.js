@@ -1,273 +1,53 @@
-/**
- * Word Generator & Vocabulary Database for SpeakUp
- * Provides phonetic IPA dictionary, sound categories, and spaced-repetition daily word scheduling.
- */
-
-const VocabularyDatabase = {
-  // Accent dictionary mapping words to US IPA
-  IPA_DICTIONARY: {
-    // Baseline Day 1
-    "water": "/ˈwɑː.t̬ɚ/",
-    "friend": "/frɛnd/",
-    "family": "/ˈfæm.əl.i/",
-    "school": "/skuːl/",
-    "world": "/wɝːld/",
-    "breakfast": "/ˈbrɛk.fəst/",
-    "important": "/ɪmˈpɔːr.tənt/",
-    "beautiful": "/ˈbjuː.t̬ɪ.fəl/",
-    "vegetable": "/ˈvɛdʒ.tə.bəl/",
-    "computer": "/kəmˈpjuː.t̬ɚ/",
-    
-    // TH Sounds
-    "think": "/θɪŋk/",
-    "thank": "/θæŋk/",
-    "this": "/ðɪs/",
-    "three": "/θriː/",
-    "thing": "/θɪŋ/",
-    "mouth": "/maʊθ/",
-    "teeth": "/tiːθ/",
-    "path": "/pæθ/",
-    "both": "/boʊθ/",
-    "birthday": "/ˈbɝːθ.deɪ/",
-    "thought": "/θɑːt/",
-    "thirsty": "/ˈθɝː.sti/",
-    "threat": "/θrɛt/",
-    "weather": "/ˈwɛð.ɚ/",
-    "father": "/ˈfɑː.ðɚ/",
-    "mother": "/ˈmʌð.ɚ/",
-    "brother": "/ˈbrʌð.ɚ/",
-    "healthy": "/ˈhɛl.θi/",
-    "methodology": "/ˌmɛθ.əˈdɑː.lə.dʒi/",
-    "therapeutic": "/ˌθɛr.əˈpjuː.tɪk/",
-    "thorough": "/ˈθɝː.oʊ/",
-    "thoughtlessness": "/ˈθɑːt.ləs.nəs/",
-    "unsympathetic": "/ˌʌn.sɪm.pəˈθɛt̬.ɪk/",
-
-    // R Sounds
-    "right": "/raɪt/",
-    "road": "/roʊd/",
-    "really": "/ˈriː.ə.li/",
-    "run": "/rʌn/",
-    "red": "/rɛd/",
-    "write": "/raɪt/",
-    "rain": "/reɪn/",
-    "room": "/ruːm/",
-    "read": "/riːd/",
-    "ring": "/rɪŋ/",
-    "restaurant": "/ˈrɛs.tɚ.ɑːnt/",
-    "remember": "/rɪˈmɛm.bɚ/",
-    "priority": "/praɪˈɔːr.ə.t̬i/",
-    "progress": "/ˈprɑː.ɡrɛs/",
-    "direct": "/dɪˈrɛkt/",
-    "library": "/ˈlaɪ.brɛr.i/",
-    "direction": "/dɪˈrɛk.ʃən/",
-    "representative": "/ˌrɛp.rɪˈzɛn.t̬ə.t̬ɪv/",
-    "recursive": "/rɪˈkɝː.sɪv/",
-    "reconstruct": "/ˌriː.kənˈstrʌkt/",
-    "respiratory": "/ˈrɛs.pə.rə.tɔːr.i/",
-    "characteristic": "/ˌkær.ək.təˈrɪs.tɪk/",
-
-    // L Sounds
-    "look": "/lʊk/",
-    "little": "/ˈlɪt̬.əl/",
-    "like": "/laɪk/",
-    "live": "/lɪv/",
-    "late": "/leɪt/",
-    "long": "/lɑːŋ/",
-    "love": "/lʌv/",
-    "line": "/laɪn/",
-    "left": "/lɛft/",
-    "light": "/laɪt/",
-    "yellow": "/ˈjɛl.oʊ/",
-    "popular": "/ˈpɑː.pjə.lɚ/",
-    "clean": "/kliːn/",
-    "place": "/pleɪs/",
-    "sleep": "/sliːp/",
-    "building": "/ˈbɪl.dɪŋ/",
-    "visual": "/ˈvɪʒ.u.əl/",
-    "double": "/ˈdʌb.əl/",
-    "literally": "/ˈlɪt̬.ɚ.ə.li/",
-    "legislative": "/ˈlɛdʒ.ə.sleɪ.t̬ɪv/",
-    "collection": "/kəˈlɛk.ʃən/",
-    "correlation": "/ˌkɔːr.əˈleɪ.ʃən/",
-    "technological": "/ˌtɛk.nəˈlɑː.dʒɪ.kəl/",
-
-    // V/W Sounds
-    "very": "/ˈvɛr.i/",
-    "voice": "/vɔɪs/",
-    "view": "/vjuː/",
-    "volcano": "/vɑːlˈkeɪ.noʊ/",
-    "value": "/ˈvæl.juː/",
-    "heavy": "/ˈhɛv.i/",
-    "evaluate": "/ɪˈvæl.ju.eɪt/",
-    "vulnerability": "/ˌvʌl.nɚ.əˈbɪl.ə.t̬i/",
-    "visualization": "/ˌvɪʒ.u.əl.əˈzeɪ.ʃən/",
-    "wave-particle": "/weɪv ˈpɑːr.t̬ɪ.kəl/",
-    "want": "/wɑːnt/",
-    "walk": "/wɑːk/",
-    "wait": "/weɪt/",
-    "work": "/wɝːk/",
-    "week": "/wiːk/",
-    "whatever": "/wɑːtˈɛv.ɚ/",
-    "window": "/ˈwɪn.doʊ/",
-    "everywhere": "/ˈɛv.ri.wer/",
-    "withdrawal": "/wɪðˈdrɑː.əl/",
-    "unequivocally": "/ˌʌn.ɪˈkwɪv.ə.kli/",
-
-    // Final Consonants
-    "stop": "/stɑːp/",
-    "help": "/hɛlp/",
-    "desk": "/dɛsk/",
-    "hand": "/hænd/",
-    "cat": "/kæt/",
-    "dog": "/dɔːɡ/",
-    "cup": "/kʌp/",
-    "map": "/mæp/",
-    "project": "/ˈprɑː.dʒɛkt/",
-    "perfect": "/ˈpɝː.fɪkt/",
-    "product": "/ˈprɑː.dʌkt/",
-    "dynamic": "/daɪˈnæm.ɪk/",
-    "context": "/ˈkɑːn.tɛkst/",
-    "respect": "/rɪˈspɛkt/",
-    "development": "/dɪˈvɛl.əp.mənt/",
-    "assessment": "/əˈsɛs.mənt/",
-    "requirement": "/rɪˈkwaɪr.mənt/",
-    "significance": "/sɪɡˈnɪf.ə.kəns/",
-    "establishment": "/ɪˈstæb.lɪʃ.mənt/",
-
-    // General Vowels
-    "home": "/hoʊm/",
-    "time": "/taɪm/",
-    "food": "/fuːd/",
-    "apple": "/ˈæp.əl/",
-    "bed": "/bɛd/",
-    "sit": "/sɪt/",
-    "hot": "/hɑːt/",
-    "customer": "/ˈkʌs.tə.mɚ/",
-    "manager": "/ˈmæn.ə.dʒɚ/",
-    "responsibility": "/rɪˌspɑːn.səˈbɪl.ə.t̬i/",
-    "artificial intelligence": "/ˌɑːr.t̬ɪ.fɪʃ.əl ɪnˈtɛl.ə.dʒəns/",
-    "communication": "/kəˌmjuː.nəˈkeɪ.ʃən/",
-    "specification": "/ˌspɛs.ə.fəˈkeɪ.ʃən/"
-  },
-
-  // Words grouped by target sound category and difficulty
-  WORDS_BY_CATEGORY: {
-    "TH Sounds": {
-      beginner: ["think", "thank", "this", "three", "thing", "mouth", "teeth", "path", "both", "birthday"],
-      intermediate: ["thought", "thirsty", "threat", "weather", "father", "mother", "brother", "healthy"],
-      advanced: ["methodology", "therapeutic", "thorough", "thoughtlessness", "unsympathetic"]
-    },
-    "R Sounds": {
-      beginner: ["right", "road", "really", "run", "red", "write", "rain", "room", "read", "ring"],
-      intermediate: ["restaurant", "remember", "priority", "progress", "direct", "library", "direction"],
-      advanced: ["representative", "recursive", "reconstruct", "respiratory", "characteristic"]
-    },
-    "L Sounds": {
-      beginner: ["look", "little", "like", "live", "late", "long", "love", "line", "left", "light"],
-      intermediate: ["yellow", "popular", "clean", "place", "sleep", "building", "visual", "double"],
-      advanced: ["literally", "legislative", "collection", "correlation", "technological"]
-    },
-    "V/W Sounds": {
-      beginner: ["very", "voice", "view", "want", "walk", "wait", "work", "week"],
-      intermediate: ["volcano", "value", "heavy", "evaluate", "whatever", "window", "everywhere"],
-      advanced: ["vulnerability", "visualization", "wave-particle", "withdrawal", "unequivocally"]
-    },
-    "Final Consonants": {
-      beginner: ["stop", "help", "desk", "hand", "cat", "dog", "cup", "map"],
-      intermediate: ["project", "perfect", "product", "dynamic", "context", "respect", "development"],
-      advanced: ["assessment", "requirement", "significance", "establishment"]
-    },
-    "Vowel Sounds": {
-      beginner: ["home", "time", "food", "apple", "bed", "sit", "hot"],
-      intermediate: ["beautiful", "vegetable", "computer", "customer", "manager", "important"],
-      advanced: ["responsibility", "artificial intelligence", "communication", "specification"]
-    }
-  },
-
-  // First day word list (Initial Baseline Assessment)
-  FIRST_DAY_WORDS: [
-    "water", "friend", "family", "school", "world", 
-    "breakfast", "important", "beautiful", "vegetable", "computer"
+/* SpeakUp curriculum: NZ workplace intelligibility, not accent imitation. */
+const Curriculum = {
+  diagnosticItems: [
+    ['v-w', 'very', '/ˈver.i/', 'Say: We verified the value.', 'Word'],
+    ['th-voiced', 'this', '/ðɪs/', 'Say: This is the third version.', 'Word'],
+    ['th-voiceless', 'think', '/θɪŋk/', 'Say: I think the path is clear.', 'Word'],
+    ['r-l', 'really', '/ˈrɪə.li/', 'Say: We really need reliable logs.', 'Word'],
+    ['final-stops', 'project', '/ˈprɒdʒekt/', 'Say: The project shipped last week.', 'Word'],
+    ['vowels', 'work', '/wɜːk/', 'Say: The work is ready for review.', 'Word'],
+    ['stress', 'responsibility', '/rɪˌspɒnsəˈbɪləti/', 'Say: I will take responsibility for the rollout.', 'Sentence'],
+    ['rhythm', 'update', '/ʌpˈdeɪt/', 'Say: Here is a short update on the incident.', 'Sentence'],
+    ['clarity', 'architecture', '/ˈɑːkɪtektʃə/', 'Say: I recommend a simpler architecture.', 'Sentence'],
+    ['leadership', 'decision', '/dɪˈsɪʒən/', 'Say: I disagree, but I support the decision.', 'Sentence']
   ],
-
-  // Maps category label to baseline description
-  CATEGORY_FOCUS_DESCRIPTIONS: {
-    "TH Sounds": "Improve the 'TH' tongue-between-teeth fricative voicing.",
-    "R Sounds": "Calibrate liquid R retraction and lip shape.",
-    "L Sounds": "Practice clean light L contact and dark L back-tongue lifts.",
-    "V/W Sounds": "Distinguish lip rounding (W) from lip-to-teeth contact (V).",
-    "Final Consonants": "Reinforce clear final consonant releases, avoiding deletion.",
-    "Vowel Sounds": "Calibrate American vowel tension and positioning."
+  skills: [
+    { id: 'v-w', name: 'V / W contrast', category: 'Consonant contrast', cue: 'For /v/, touch lower lip to upper teeth; for /w/, round both lips.', items: [['very', '/ˈver.i/', 'We verified the value.'], ['work', '/wɜːk/', 'The work is ready for review.']] },
+    { id: 'th-voiced', name: 'Voiced TH', category: 'Consonant contrast', cue: 'Let the tongue tip show lightly and keep your voice on for /ð/.', items: [['this', '/ðɪs/', 'This is the third version.'], ['those', '/ðəʊz/', 'Those changes look good.']] },
+    { id: 'th-voiceless', name: 'Unvoiced TH', category: 'Consonant contrast', cue: 'Let air pass over a light tongue-tip contact for /θ/.', items: [['think', '/θɪŋk/', 'I think the path is clear.'], ['three', '/θriː/', 'We have three options.']] },
+    { id: 'r-l', name: 'R / L clarity', category: 'Consonant contrast', cue: 'Keep /r/ rounded and avoid replacing it with a light /l/.', items: [['really', '/ˈrɪə.li/', 'We really need reliable logs.'], ['release', '/rɪˈliːs/', 'The release is ready.']] },
+    { id: 'final-stops', name: 'Final consonants', category: 'Word endings', cue: 'Finish the final sound; do not swallow the end of the word.', items: [['project', '/ˈprɒdʒekt/', 'The project shipped last week.'], ['build', '/bɪld/', 'The build passed.']] },
+    { id: 'vowels', name: 'Core vowels', category: 'Vowel clarity', cue: 'Hold the vowel clearly before moving to the final consonant.', items: [['work', '/wɜːk/', 'The work is ready for review.'], ['world', '/wɜːld/', 'The world is changing quickly.']] },
+    { id: 'stress', name: 'Word stress', category: 'Prosody', cue: 'Make the stressed syllable longer and clearer, not louder only.', items: [['responsibility', '/rɪˌspɒnsəˈbɪləti/', 'I will take responsibility for the rollout.'], ['communication', '/kəˌmjuːnɪˈkeɪʃən/', 'Clear communication reduces risk.']] },
+    { id: 'rhythm', name: 'Sentence rhythm', category: 'Prosody', cue: 'Stress the key information and shorten the small connecting words.', items: [['update', '/ʌpˈdeɪt/', 'Here is a short update on the incident.'], ['priority', '/praɪˈɒrəti/', 'Our priority is customer impact.']] },
+    { id: 'clarity', name: 'Technical clarity', category: 'Career transfer', cue: 'Use one idea per sentence and pause before the key point.', items: [['architecture', '/ˈɑːkɪtektʃə/', 'I recommend a simpler architecture.'], ['trade-off', '/ˈtreɪd ɒf/', 'The trade-off is speed versus reliability.']] },
+    { id: 'leadership', name: 'Leadership language', category: 'Career transfer', cue: 'Keep the message direct, calm, and constructive.', items: [['decision', '/dɪˈsɪʒən/', 'I disagree, but I support the decision.'], ['alignment', '/əˈlaɪnmənt/', 'Let us confirm alignment before we proceed.']] }
+  ],
+  skill(id) { return this.skills.find(skill => skill.id === id); },
+  diagnosticPlan() { return this.diagnosticItems.map(([skillId, target, ipa, sentence, format]) => ({ id: `diagnostic-${skillId}-${target}`, skillId, target, ipa, sentence, spokenTarget: format === 'Sentence' ? sentence.replace(/^Say:\s*/, '') : target, format, stage: 'Diagnostic' })); },
+  progress(history, skillId) {
+    const attempts = history.filter(item => item.skillId === skillId).sort((a, b) => a.timestamp - b.timestamp);
+    const recent = attempts.slice(-5), clear = recent.filter(item => item.score >= 82).length;
+    const transfers = attempts.filter(item => item.format !== 'Word' && item.score >= 82).length;
+    const days = new Set(attempts.filter(item => item.score >= 82).map(item => item.date)).size;
+    const retained = attempts.some(item => item.format !== 'Word' && item.score >= 82 && Date.now() - item.timestamp > 6 * 86400000);
+    return { attempts, recent, clear, transfers, days, retained, ready: clear >= 4 && transfers >= 1 && days >= 2 && retained, confidence: Math.min(100, clear * 14 + Math.min(transfers, 2) * 12 + Math.min(days, 3) * 10 + (retained ? 16 : 0)) };
   },
-
-  // Resolves category of a word
-  getWordCategory(word) {
-    for (const category of Object.keys(this.WORDS_BY_CATEGORY)) {
-      const diffs = this.WORDS_BY_CATEGORY[category];
-      if (
-        diffs.beginner.includes(word) ||
-        diffs.intermediate.includes(word) ||
-        diffs.advanced.includes(word)
-      ) {
-        return category;
-      }
-    }
-    // Baseline items fallback
-    if (["water", "breakfast", "computer", "beautiful", "vegetable", "important"].includes(word)) return "Vowel Sounds";
-    if (["world", "friend"].includes(word)) return "Final Consonants";
-    if (["family", "school"].includes(word)) return "Vowel Sounds";
-    return "Vowel Sounds";
+  createItem(skill, index, format = 'Word', stage = 'Precision') {
+    const [target, ipa, sentence] = skill.items[index % skill.items.length];
+    return { id: `${skill.id}-${format}-${target}`, skillId: skill.id, target, ipa, sentence, spokenTarget: format === 'Word' ? target : sentence, format, stage, cue: skill.cue, category: skill.category };
   },
-
-  // Resolves difficulty of a word
-  getWordDifficulty(word) {
-    for (const category of Object.keys(this.WORDS_BY_CATEGORY)) {
-      const diffs = this.WORDS_BY_CATEGORY[category];
-      if (diffs.beginner.includes(word)) return "beginner";
-      if (diffs.intermediate.includes(word)) return "intermediate";
-      if (diffs.advanced.includes(word)) return "advanced";
-    }
-    // Baseline items fallback
-    if (["water", "friend", "family", "school"].includes(word)) return "beginner";
-    if (["world", "breakfast", "beautiful", "computer"].includes(word)) return "intermediate";
-    return "advanced";
+  todayPlan(history, profile) {
+    const due = history.filter(item => item.nextReviewAt && item.nextReviewAt <= Date.now()).sort((a, b) => a.nextReviewAt - b.nextReviewAt);
+    const ranked = this.skills.map(skill => ({ skill, progress: this.progress(history, skill.id) })).sort((a, b) => a.progress.confidence - b.progress.confidence || a.progress.attempts.length - b.progress.attempts.length);
+    const [primary, secondary] = ranked, items = [];
+    due.slice(0, 2).forEach((attempt, index) => { const skill = this.skill(attempt.skillId) || primary.skill; items.push(this.createItem(skill, index, attempt.format === 'Word' ? 'Sentence' : attempt.format, 'Review')); });
+    items.push(this.createItem(primary.skill, 0, 'Word', 'Precision'));
+    items.push(this.createItem(primary.skill, 1, 'Sentence', 'Transfer'));
+    items.push(this.createItem(secondary.skill, 0, 'Word', 'Precision'));
+    items.push(this.createItem(this.skill('clarity'), 0, 'Sentence', 'Career lab'));
+    return { items: items.slice(0, 6), title: `Build ${primary.skill.name}`, focus: `${primary.skill.cue} Your plan mixes review, precision, and career transfer.`, minutes: profile.dailyMinutes || 30, primary };
   },
-
-  // Main generator function
-  generateDailyWords(history, settings) {
-    const level = settings.difficulty === 'adaptive' || !settings.difficulty ? this.computeAdaptiveDifficulty(history) : settings.difficulty;
-    const progress = this.getCategoryProgress(history, level);
-    const weakest = progress.slice().sort((a, b) => a.progress - b.progress || a.average - b.average)[0];
-    const targetPool = this.WORDS_BY_CATEGORY[weakest.category][level] || this.WORDS_BY_CATEGORY[weakest.category].beginner;
-    const practiced = new Set(history.map(item => item.word));
-    const weakAttempts = history.filter(item => item.category === weakest.category).sort((a, b) => a.score - b.score).map(item => item.word);
-    const ordered = [...new Set([...weakAttempts, ...targetPool.filter(word => !practiced.has(word)), ...targetPool])];
-    const words = ordered.slice(0, 8).map(word => ({ word, ipa: this.IPA_DICTIONARY[word] || '', category: this.getWordCategory(word), difficulty: level }));
-    return {
-      focus: weakest.mastered ? `Maintain ${weakest.category}; the next weakest sound is now the priority.` : `Stay with ${weakest.category} until it is mastered: 5 attempts, latest 3 at 85%+, overall average 80%+.`,
-      difficulty: level,
-      weakestCategory: weakest.category,
-      mastery: weakest,
-      words
-    };
-  },
-
-  getCategoryProgress(history, level) {
-    return Object.keys(this.WORDS_BY_CATEGORY).map(category => {
-      const attempts = history.filter(item => item.category === category && item.difficulty === level);
-      const recent = attempts.slice(-3);
-      const average = attempts.length ? Math.round(attempts.reduce((sum, item) => sum + item.score, 0) / attempts.length) : 0;
-      const mastered = attempts.length >= 5 && recent.length === 3 && recent.every(item => item.score >= 85) && average >= 80;
-      return { category, attempts: attempts.length, average, mastered, progress: Math.min(100, Math.round((Math.min(5, attempts.length) / 5) * 55 + (recent.filter(item => item.score >= 85).length / 3) * 45)) };
-    });
-  },
-
-  computeAdaptiveDifficulty(history) {
-    const beginner = this.getCategoryProgress(history, 'beginner');
-    if (!beginner.every(item => item.mastered)) return 'beginner';
-    const intermediate = this.getCategoryProgress(history, 'intermediate');
-    if (!intermediate.every(item => item.mastered)) return 'intermediate';
-    return 'advanced';
-  }
+  nextLevel(history) { const core = this.skills.filter(skill => !['clarity', 'leadership'].includes(skill.id)); const ready = core.filter(skill => this.progress(history, skill.id).ready).length; return { ready, total: core.length, unlocked: ready === core.length }; }
 };

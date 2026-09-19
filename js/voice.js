@@ -30,7 +30,8 @@ const VoiceCoach = {
     return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
   },
 
-  // Play word pronunciation using US accent
+  // Play a browser-provided NZ English voice when available. Reference audio remains
+  // a listening aid, not a claim of one "correct" accent.
   speak(text, onEnd) {
     if (!('speechSynthesis' in window)) {
       if (onEnd) onEnd();
@@ -44,10 +45,10 @@ const VoiceCoach = {
     // Load voices — on iOS they may not be available synchronously
     const trySpeak = () => {
       const voices = window.speechSynthesis.getVoices();
-      let usVoice = voices.find(v => v.lang === 'en-US' && v.name.includes('Samantha'));
-      if (!usVoice) usVoice = voices.find(v => v.lang === 'en-US');
-      if (!usVoice) usVoice = voices.find(v => v.lang.startsWith('en'));
-      if (usVoice) utterance.voice = usVoice;
+      let preferredVoice = voices.find(v => v.lang === 'en-NZ');
+      if (!preferredVoice) preferredVoice = voices.find(v => v.lang === 'en-AU' || v.lang === 'en-GB');
+      if (!preferredVoice) preferredVoice = voices.find(v => v.lang.startsWith('en'));
+      if (preferredVoice) utterance.voice = preferredVoice;
 
       utterance.rate = 0.9;
       utterance.pitch = 1.0;
@@ -87,7 +88,7 @@ const VoiceCoach = {
     this.recognition = new SpeechRecognitionAPI();
     this.recognition.continuous = true;   // Keep mic open until we manually stop
     this.recognition.interimResults = true;
-    this.recognition.lang = 'en-US';
+    this.recognition.lang = 'en-NZ';
     this.recognition.maxAlternatives = 1;
 
     // Store state
@@ -165,7 +166,9 @@ const VoiceCoach = {
     if (onUpdate) onUpdate('analyzing');
 
     const visualMetrics = typeof MouthTracker !== 'undefined' ? MouthTracker.getLatestMetrics() : {};
-    const visualFrame = typeof MouthTracker !== 'undefined' ? MouthTracker.captureFrame() : '';
+    const settings = typeof StorageManager !== 'undefined' ? StorageManager.getSettings() : {};
+    // A frame is transmitted only after explicit learner consent. Local landmarks remain local.
+    const visualFrame = settings.shareVisualEvidence && typeof MouthTracker !== 'undefined' ? MouthTracker.captureFrame() : '';
 
     // Small delay so the UI can update to "Analyzing..." before heavy work
     setTimeout(async () => {
@@ -209,7 +212,7 @@ const VoiceCoach = {
   async analyzeWithCloud(audio, target, ipa, category, visualMetrics, visualFrame) {
     const savedSettings = typeof StorageManager !== 'undefined' ? StorageManager.getSettings() : {};
     const apiBaseUrl = savedSettings.apiBaseUrl || (window.SPEAKUP_CONFIG && window.SPEAKUP_CONFIG.apiBaseUrl);
-    if (!apiBaseUrl || !audio || !audio.size) return null;
+    if (!savedSettings.cloudCoach || !apiBaseUrl || !audio || !audio.size) return null;
     const form = new FormData();
     const extension = audio.type.includes('mp4') ? 'm4a' : 'webm';
     form.append('audio', audio, `attempt.${extension}`);
@@ -251,12 +254,14 @@ const VoiceCoach = {
       score = Math.max(55, Math.round(86 - (distance / Math.max(targetClean.length, 1)) * 35));
       wellDone = ['You completed a clear spoken attempt.'];
 
-      if (category === 'TH Sounds') {
-        toImprove = ['Use the reference for TH: keep airflow continuous; only a visible tongue-tip pose can be checked by camera.'];
-      } else if (category === 'R Sounds') {
-        toImprove = ['Use the reference mouth shape for R. The camera checks visible lips only, not hidden tongue position.'];
-      } else if (category === 'L Sounds') {
-        toImprove = ['Use the reference animation for L, then practise the word slowly before natural speed.'];
+      if (category === 'Consonant contrast') {
+        toImprove = ['Slow down once and make the contrast visible and audible before returning to normal speed.'];
+      } else if (category === 'Word endings') {
+        toImprove = ['Release the final consonant instead of swallowing the word ending.'];
+      } else if (category === 'Prosody') {
+        toImprove = ['Stress the key word, then keep the small connecting words lighter.'];
+      } else if (category === 'Career transfer') {
+        toImprove = ['Pause before your key point and deliver one clear idea per sentence.'];
       } else if (category === 'V/W Sounds') {
         if (targetClean.startsWith('w')) {
           toImprove = ['Round your lips tightly for the /w/ sound, avoiding /v/ friction.'];
