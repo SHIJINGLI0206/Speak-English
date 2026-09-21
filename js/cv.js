@@ -68,15 +68,15 @@ const MouthTracker = {
     const opening = distance(p(13), p(14));
     const ratio = width ? opening / width : 0;
     const centered = p(1).x > 0.18 && p(1).x < 0.82 && p(1).y > 0.12 && p(1).y < 0.72;
-    const expectedWide = this.category === 'Vowel Sounds';
-    const expectedRound = this.category === 'V/W Sounds';
+    const expectedWide = this.category === 'vowels';
+    const expectedRound = this.category === 'v-w';
     const openingLabel = ratio > 0.23 ? 'Open' : ratio > 0.12 ? 'Moderate' : 'Narrow';
     const roundingLabel = width < 0.17 ? 'Rounded' : 'Relaxed';
     let tip = 'Keep your face still and copy the reference mouth movement.';
     if (!centered) tip = 'Move closer and centre your face for a reliable visible-mouth check.';
     else if (expectedWide && ratio < 0.16) tip = 'For this vowel drill, open your jaw a little wider than your normal speaking shape.';
     else if (expectedRound && width > 0.22) tip = 'For this lip-shape drill, bring your lip corners inward before you speak.';
-    else if (this.category === 'TH Sounds') tip = 'For TH, use the reference illustration; the camera can only confirm a visible tongue tip, not hidden tongue position.';
+    else if (String(this.category).startsWith('th-')) tip = 'For TH, use the close-up guide; the camera can only confirm visible mouth framing, not hidden tongue position.';
     return { confidence: centered ? 'good' : 'limited', opening: openingLabel, rounding: roundingLabel, tip, ratio: Number(ratio.toFixed(3)) };
   },
 

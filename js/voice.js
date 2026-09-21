@@ -24,6 +24,7 @@ const VoiceCoach = {
   mediaRecorder: null,
   audioChunks: [],
   audioBlob: null,
+  audioStartedAt: 0,
 
   // Detect iOS Safari
   _isIOS() {
@@ -69,7 +70,7 @@ const VoiceCoach = {
   },
 
   // Starts recording voice and runs recognition
-  async startPractice(targetWord, targetIpa, category, onUpdate, onComplete, onError) {
+  async startPractice(targetWord, targetIpa, category, stage, firstLanguage, onUpdate, onComplete, onError) {
     // Always create a fresh instance — iOS requires this
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) {
@@ -78,7 +79,7 @@ const VoiceCoach = {
       this._onComplete = onComplete;
       this._onUpdate = onUpdate;
       this._transcribedText = '';
-      this._practiceArgs = { targetWord, targetIpa, category };
+      this._practiceArgs = { targetWord, targetIpa, category, stage, firstLanguage };
       this.audioBlob = null;
       this.startAudioCapture().catch(error => console.warn('Audio capture unavailable:', error));
       onUpdate('listening');
@@ -96,7 +97,7 @@ const VoiceCoach = {
     this._onComplete = onComplete;
     this._onUpdate = onUpdate;
     this._transcribedText = '';
-    this._practiceArgs = { targetWord, targetIpa, category };
+    this._practiceArgs = { targetWord, targetIpa, category, stage, firstLanguage };
     this.audioBlob = null;
     this.startAudioCapture().catch(error => console.warn('Audio capture unavailable:', error));
 
@@ -158,7 +159,7 @@ const VoiceCoach = {
       try { this.recognition.stop(); } catch (e) { /* safe to ignore */ }
     }
 
-    const { targetWord, targetIpa, category } = this._practiceArgs || {};
+    const { targetWord, targetIpa, category, stage, firstLanguage } = this._practiceArgs || {};
     const onUpdate = this._onUpdate;
     const onComplete = this._onComplete;
     const transcript = this._transcribedText;
@@ -173,9 +174,10 @@ const VoiceCoach = {
     // Small delay so the UI can update to "Analyzing..." before heavy work
     setTimeout(async () => {
       const audio = await this.stopAudioCapture();
+      const audioMetrics = { durationMs: Math.max(0, Date.now() - this.audioStartedAt), bytes: audio?.size || 0 };
       let report = null;
       try {
-        report = await this.analyzeWithCloud(audio, targetWord, targetIpa, category, visualMetrics, visualFrame);
+        report = await this.analyzeWithCloud(audio, targetWord, targetIpa, category, stage, firstLanguage, audioMetrics, visualMetrics, visualFrame);
       } catch (error) {
         console.warn('Cloud analysis unavailable; using local clarity fallback.', error);
       }
@@ -190,6 +192,7 @@ const VoiceCoach = {
     const supported = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find(type => MediaRecorder.isTypeSupported(type));
     this.mediaRecorder = supported ? new MediaRecorder(this.mediaStream, { mimeType: supported }) : new MediaRecorder(this.mediaStream);
     this.audioChunks = [];
+    this.audioStartedAt = Date.now();
     this.mediaRecorder.ondataavailable = event => { if (event.data && event.data.size) this.audioChunks.push(event.data); };
     this.mediaRecorder.start();
   },
@@ -209,7 +212,7 @@ const VoiceCoach = {
     });
   },
 
-  async analyzeWithCloud(audio, target, ipa, category, visualMetrics, visualFrame) {
+  async analyzeWithCloud(audio, target, ipa, category, stage, firstLanguage, audioMetrics, visualMetrics, visualFrame) {
     const savedSettings = typeof StorageManager !== 'undefined' ? StorageManager.getSettings() : {};
     const apiBaseUrl = savedSettings.apiBaseUrl || (window.SPEAKUP_CONFIG && window.SPEAKUP_CONFIG.apiBaseUrl);
     if (!savedSettings.cloudCoach || !apiBaseUrl || !audio || !audio.size) return null;
@@ -219,6 +222,9 @@ const VoiceCoach = {
     form.append('target', target || '');
     form.append('ipa', ipa || '');
     form.append('category', category || '');
+    form.append('practiceStage', stage || '');
+    form.append('firstLanguage', firstLanguage || '');
+    form.append('audioMetrics', JSON.stringify(audioMetrics || {}));
     form.append('visualMetrics', JSON.stringify(visualMetrics || {}));
     if (visualFrame) form.append('visualFrame', visualFrame);
     const response = await fetch(`${apiBaseUrl.replace(/\/$/, '')}/api/analyze`, { method: 'POST', body: form });
@@ -230,7 +236,7 @@ const VoiceCoach = {
       wellDone: payload.wellDone || ['AI feedback was unavailable for this attempt.'],
       toImprove: payload.toImprove || ['Try the reference word once more.'],
       cvMetrics: { opening: payload.opening, rounding: payload.rounding, tip: payload.tip },
-      evidence: { transcriptConfidence: payload.confidence || 'limited', visualConfidence: visualMetrics && visualMetrics.confidence || 'not assessed', analysisSource: payload.analysisSource }
+      evidence: { transcriptConfidence: payload.confidence || 'limited', visualConfidence: visualMetrics && visualMetrics.confidence || 'not assessed', analysisSource: payload.analysisSource, audioEvidence: payload.evidence || null }
     };
   },
 

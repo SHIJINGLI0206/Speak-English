@@ -17,5 +17,13 @@
 			"id": "4e3854c1c15749c5b496810a8ba66a17",
 			"remote": true
 		}
+	],
+	"d1_databases": [
+		{
+			"binding": "PROGRESS_DB",
+			"database_name": "speakup-progress",
+			"database_id": "57524f5d-2418-4c59-bfcb-8e95e3795468",
+			"migrations_dir": "migrations"
+		}
 	]
 }

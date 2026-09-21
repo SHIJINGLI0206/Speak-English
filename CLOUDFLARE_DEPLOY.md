@@ -33,4 +33,15 @@ In the Cloudflare dashboard:
 3. Use the repository root as the root directory, leave the build command empty, and set the output directory to `.`.
 4. Deploy, then add the Pages URL to the Worker `ALLOWED_ORIGINS` value and redeploy the Worker.
 
-For a personal app, the Worker’s KV limit is a useful baseline. Before sharing the app publicly, add Cloudflare Access or Turnstile to protect the paid OpenAI endpoint from direct abuse. Progress is local-first in this release; do not add remote learner history without authenticated accounts and a retention policy.
+For a personal app, the Worker’s KV limit is a useful baseline. Before sharing the app publicly, add Cloudflare Access or Turnstile to protect the paid OpenAI endpoint from direct abuse.
+
+## Optional D1 learning-history backup
+
+`speakup-progress` is bound as `PROGRESS_DB`. Apply the migration before deploying the Worker:
+
+```bash
+cd api-worker
+npx wrangler d1 migrations apply speakup-progress --remote
+```
+
+The app remains local-first. Backup is opt-in in Settings and stores only the learner profile, scores, feedback text, transcripts, and review schedule; it never stores raw audio or camera frames. Each browser receives a random device-only sync key. There is no sign-in or account recovery in this personal-app design: clearing browser storage removes that key and therefore access to an existing backup. Do not enable this feature for multiple people or a shared production app without real authentication and an explicit retention/deletion policy.
