@@ -1,11 +1,11 @@
 /**
  * On-device visible articulation coach.
- * MediaPipe Face Mesh runs in the browser. It measures only visible lip/face
+ * MediaPipe Face Landmarker runs in the browser. It measures only visible lip/face
  * evidence; it never claims to infer hidden tongue positions.
  */
 const MouthTracker = {
-  video: null, canvas: null, ctx: null, stream: null, faceMesh: null,
-  animationId: null, isTracking: false, latestMetrics: null,
+  video: null, canvas: null, ctx: null, stream: null, faceLandmarker: null,
+  animationId: null, isTracking: false, latestMetrics: null, lastFrameAt: 0,
 
   async startCamera(videoElement, canvasElement, category) {
     this.stopCamera();
@@ -24,8 +24,7 @@ const MouthTracker = {
       this.resizeCanvas();
       window.addEventListener('resize', this.resizeCanvasBound = () => this.resizeCanvas());
       this.isTracking = true;
-      if (window.FaceMesh) this.setupFaceMesh();
-      else this.drawStatus('Camera active — visual landmarks unavailable offline');
+      await this.setupFaceLandmarker();
       return true;
     } catch (error) {
       console.warn('Camera access failed', error);
@@ -34,13 +33,24 @@ const MouthTracker = {
     }
   },
 
-  setupFaceMesh() {
-    this.faceMesh = new FaceMesh({ locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` });
-    this.faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
-    this.faceMesh.onResults(results => this.onResults(results));
-    const process = async () => {
+  async setupFaceLandmarker() {
+    const { FaceLandmarker, FilesetResolver } = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm');
+    const vision = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm');
+    this.faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+      baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task' },
+      runningMode: 'VIDEO', numFaces: 1, minFaceDetectionConfidence: 0.6,
+      minFacePresenceConfidence: 0.6, minTrackingConfidence: 0.6,
+      outputFaceBlendshapes: true, outputFacialTransformationMatrixes: true
+    });
+    const process = () => {
       if (!this.isTracking) return;
-      if (this.video.readyState >= 2) await this.faceMesh.send({ image: this.video });
+      const now = performance.now();
+      // Face Landmarker runs synchronously in the browser. Ten samples per
+      // second is enough for coaching while preserving a responsive recorder.
+      if (this.video.readyState >= 2 && now - this.lastFrameAt >= 100) {
+        this.lastFrameAt = now;
+        this.onResults(this.faceLandmarker.detectForVideo(this.video, now));
+      }
       this.animationId = requestAnimationFrame(process);
     };
     process();
@@ -48,19 +58,20 @@ const MouthTracker = {
 
   onResults(results) {
     this.resizeCanvas();
-    const landmarks = results.multiFaceLandmarks && results.multiFaceLandmarks[0];
+    const landmarks = results.faceLandmarks && results.faceLandmarks[0];
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     if (!landmarks) {
       this.latestMetrics = { confidence: 'limited', opening: 'Not assessed', rounding: 'Not assessed', tip: 'Keep your full face in the guide so visible-mouth coaching can start.' };
       this.drawStatus('Face not found — move into the guide');
       return;
     }
-    const metrics = this.measureLandmarks(landmarks);
+    const blendshapes = results.faceBlendshapes?.[0]?.categories || [];
+    const metrics = this.measureLandmarks(landmarks, blendshapes);
     this.latestMetrics = metrics;
     this.drawLips(landmarks, metrics);
   },
 
-  measureLandmarks(points) {
+  measureLandmarks(points, blendshapes = []) {
     const p = index => points[index];
     const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
     // Face Mesh outer mouth corners 61/291; upper/lower inner lip 13/14.
@@ -70,14 +81,17 @@ const MouthTracker = {
     const centered = p(1).x > 0.18 && p(1).x < 0.82 && p(1).y > 0.12 && p(1).y < 0.72;
     const expectedWide = this.category === 'vowels';
     const expectedRound = this.category === 'v-w';
-    const openingLabel = ratio > 0.23 ? 'Open' : ratio > 0.12 ? 'Moderate' : 'Narrow';
-    const roundingLabel = width < 0.17 ? 'Rounded' : 'Relaxed';
+    const shape = Object.fromEntries(blendshapes.map(item => [item.categoryName, item.score]));
+    const jawOpen = Number(shape.jawOpen || 0);
+    const pucker = Number(shape.mouthPucker || 0);
+    const openingLabel = ratio > 0.23 || jawOpen > 0.42 ? 'Open' : ratio > 0.12 || jawOpen > 0.18 ? 'Moderate' : 'Narrow';
+    const roundingLabel = width < 0.17 || pucker > 0.24 ? 'Rounded' : 'Relaxed';
     let tip = 'Keep your face still and copy the reference mouth movement.';
     if (!centered) tip = 'Move closer and centre your face for a reliable visible-mouth check.';
     else if (expectedWide && ratio < 0.16) tip = 'For this vowel drill, open your jaw a little wider than your normal speaking shape.';
     else if (expectedRound && width > 0.22) tip = 'For this lip-shape drill, bring your lip corners inward before you speak.';
     else if (String(this.category).startsWith('th-')) tip = 'For TH, use the close-up guide; the camera can only confirm visible mouth framing, not hidden tongue position.';
-    return { confidence: centered ? 'good' : 'limited', opening: openingLabel, rounding: roundingLabel, tip, ratio: Number(ratio.toFixed(3)) };
+    return { confidence: centered ? 'good' : 'limited', opening: openingLabel, rounding: roundingLabel, tip, ratio: Number(ratio.toFixed(3)), jawOpen: Number(jawOpen.toFixed(2)), mouthPucker: Number(pucker.toFixed(2)) };
   },
 
   drawLips(points, metrics) {
@@ -132,6 +146,8 @@ const MouthTracker = {
     this.isTracking = false;
     if (this.animationId) cancelAnimationFrame(this.animationId);
     this.animationId = null;
+    if (this.faceLandmarker) this.faceLandmarker.close();
+    this.faceLandmarker = null;
     if (this.stream) this.stream.getTracks().forEach(track => track.stop());
     this.stream = null;
     if (this.video) this.video.srcObject = null;

@@ -1,22 +1,19 @@
-const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
+const MAX_AUDIO_BYTES = 2 * 1024 * 1024;
 const MAX_FRAME_CHARS = 450_000;
 const MAX_PROGRESS_BYTES = 900_000;
 const MAX_HISTORY_ITEMS = 800;
 const textEncoder = new TextEncoder();
 
 const feedbackSchema = {
-  type: 'object',
-  additionalProperties: false,
+  type: 'object', additionalProperties: false,
   required: ['score', 'transcription', 'wellDone', 'toImprove', 'opening', 'rounding', 'tip', 'confidence'],
   properties: {
-    score: { type: 'integer', minimum: 0, maximum: 100 },
-    transcription: { type: 'string' },
+    score: { type: 'integer', minimum: 0, maximum: 100 }, transcription: { type: 'string' },
     wellDone: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 1 },
     toImprove: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 1 },
     opening: { type: 'string', enum: ['Open', 'Moderate', 'Narrow', 'Not assessed'] },
     rounding: { type: 'string', enum: ['Rounded', 'Relaxed', 'Not assessed'] },
-    tip: { type: 'string', maxLength: 180 },
-    confidence: { type: 'string', enum: ['high', 'limited'] }
+    tip: { type: 'string', maxLength: 180 }, confidence: { type: 'string', enum: ['high', 'limited'] }
   }
 };
 
@@ -139,6 +136,18 @@ async function enforceRateLimit(request, env, scope = 'analysis') {
   return { allowed: true };
 }
 
+async function enforceDailyOpenAiBudget(request, env) {
+  if (!env.RATE_LIMIT) return { allowed: true };
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const day = new Date().toISOString().slice(0, 10);
+  const key = `openai:${ip}:${day}`;
+  const current = Number(await env.RATE_LIMIT.get(key) || 0);
+  const limit = Number(env.MAX_OPENAI_ANALYSES_PER_DAY || 12);
+  if (current >= limit) return { allowed: false };
+  await env.RATE_LIMIT.put(key, String(current + 1), { expirationTtl: 172800 });
+  return { allowed: true };
+}
+
 function tokenCoverage(target, transcript) {
   const tokens = value => String(value || '').toLowerCase().match(/[a-z]+(?:'[a-z]+)?/g) || [];
   const expected = tokens(target), heard = new Set(tokens(transcript));
@@ -152,43 +161,27 @@ async function transcribeAudio(audio, apiKey, target) {
   body.append('model', 'gpt-4o-mini-transcribe');
   body.append('file', audio, audio.name || 'pronunciation-attempt.webm');
   body.append('language', 'en');
-  body.append('prompt', `This is an English pronunciation practice. The expected word or sentence is: ${shortText(target, 280)}`);
+  body.append('prompt', `English pronunciation practice. Expected phrase: ${shortText(target, 280)}`);
   body.append('response_format', 'json');
-  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body
-  });
+  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body });
   if (!response.ok) throw new Error(`Transcription request failed (${response.status})`);
   const data = await response.json();
-  return data.text || '';
+  return shortText(data.text, 500);
 }
 
 function extractOutputText(response) {
   if (response.output_text) return response.output_text;
-  for (const item of response.output || []) {
-    for (const content of item.content || []) {
-      if (content.type === 'output_text' && content.text) return content.text;
-    }
-  }
+  for (const item of response.output || []) for (const content of item.content || []) if (content.type === 'output_text' && content.text) return content.text;
   return '';
 }
 
 async function coach({ target, ipa, category, practiceStage, firstLanguage, transcript, audioMetrics, audioEvidence, visualMetrics, visualFrame }, apiKey) {
-  const content = [{
-    type: 'input_text',
-    text: `You are SpeakUp, a concise career-English coach for a senior AI engineer in New Zealand.\n\nTarget: ${target}\nIPA reference: ${ipa || '[not supplied]'}\nStage: ${practiceStage || 'practice'}\nPractice category: ${category}\nLearner's first language: ${firstLanguage || '[not supplied]'}\nAudio transcription: ${transcript || '[not captured]'}\nAudio evidence: ${JSON.stringify({ ...audioEvidence, durationMs: audioMetrics?.durationMs || 0 })}\nLocal visible-mouth metrics: ${JSON.stringify(visualMetrics)}\n\nUse only supplied evidence. Transcription coverage and duration show what the recogniser captured; they are not phoneme accuracy. Do not invent acoustic measurements or claim hidden tongue positions. If visual evidence is unclear, use \"Not assessed\" and lower confidence. Give exactly one specific success and one highest-impact retry action in plain English. Keep the tip under 180 characters. Prefer intelligibility, word stress, rhythm, and clear workplace delivery over imitation of a native accent.`
-  }];
-  if (visualFrame && visualFrame.startsWith('data:image/')) {
-    content.push({ type: 'input_image', image_url: visualFrame, detail: 'low' });
-  }
+  const content = [{ type: 'input_text', text: `You are SpeakUp, a concise English pronunciation and career-speech coach in New Zealand.\nTarget: ${target}\nIPA: ${ipa || '[not supplied]'}\nStage: ${practiceStage || 'practice'}\nCategory: ${category}\nFirst language: ${firstLanguage || '[not supplied]'}\nTranscript: ${transcript || '[not captured]'}\nAudio evidence: ${JSON.stringify({ ...audioEvidence, durationMs: audioMetrics?.durationMs || 0 })}\nOn-device visible-mouth metrics: ${JSON.stringify(visualMetrics)}\nUse supplied evidence only. Transcript coverage is not phoneme accuracy. Do not claim to see a hidden tongue or diagnose a phoneme from a single image. Give exactly one success and one highest-impact retry action. Prefer intelligibility, stress, rhythm, and clear workplace delivery over imitating a native accent.` }];
+  if (visualFrame && visualFrame.startsWith('data:image/')) content.push({ type: 'input_image', image_url: visualFrame, detail: 'low' });
   const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'gpt-5.6-luna',
-      reasoning: { effort: 'none' },
-      input: [{ role: 'user', content }],
+      model: 'gpt-4o-mini', store: false, input: [{ role: 'user', content }],
       text: { format: { type: 'json_schema', name: 'pronunciation_feedback', strict: true, schema: feedbackSchema } }
     })
   });
@@ -200,7 +193,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: headers(request, env) });
-    if (url.pathname === '/health') return json(request, env, { ok: true, service: 'speakup-coach-api' });
+    if (url.pathname === '/health') return json(request, env, { ok: true, service: 'speakup-coach-api', analysis: 'OpenAI audio transcription + optional vision coaching' });
     if (url.pathname === '/api/progress' && request.method === 'GET') {
       const limit = await enforceRateLimit(request, env, 'progress');
       if (!limit.allowed) return json(request, env, { error: 'Too many backup requests. Try again in a minute.' }, 429);
@@ -216,6 +209,8 @@ export default {
 
     const limit = await enforceRateLimit(request, env);
     if (!limit.allowed) return json(request, env, { error: 'Too many analysis requests. Try again in a minute.' }, 429);
+    const dailyBudget = await enforceDailyOpenAiBudget(request, env);
+    if (!dailyBudget.allowed) return json(request, env, { error: 'OpenAI practice limit reached for today. Your browser coach is still available.' }, 429);
 
     try {
       const form = await request.formData();
@@ -229,13 +224,13 @@ export default {
       const visualMetrics = JSON.parse(String(form.get('visualMetrics') || '{}'));
       const visualFrame = String(form.get('visualFrame') || '');
       if (!(audio instanceof File) || !target) return json(request, env, { error: 'A target word and audio file are required.' }, 400);
-      if (audio.size > MAX_AUDIO_BYTES) return json(request, env, { error: 'Audio must be smaller than 8 MB.' }, 413);
+      if (audio.size > MAX_AUDIO_BYTES) return json(request, env, { error: 'Audio must be smaller than 2 MB. Keep one practice attempt under 20 seconds.' }, 413);
       if (visualFrame.length > MAX_FRAME_CHARS) return json(request, env, { error: 'Visual frame is too large.' }, 413);
 
       const transcript = await transcribeAudio(audio, env.OPENAI_API_KEY, target);
       const audioEvidence = tokenCoverage(target, transcript);
       const feedback = await coach({ target, ipa, category, practiceStage, firstLanguage, transcript, audioMetrics, audioEvidence, visualMetrics, visualFrame }, env.OPENAI_API_KEY);
-      return json(request, env, { ...feedback, transcript, evidence: { ...audioEvidence, durationMs: numberInRange(audioMetrics.durationMs, 0, 60000), note: 'Transcript coverage is not phoneme accuracy.' }, analysisSource: 'OpenAI transcription + GPT-5.6 Luna', mediaRetention: 'not retained by SpeakUp' });
+      return json(request, env, { ...feedback, transcript, evidence: { ...audioEvidence, durationMs: numberInRange(audioMetrics.durationMs, 0, 60000), note: 'Transcript coverage is not phoneme accuracy.' }, analysisSource: 'OpenAI transcription + GPT-4o mini coaching', mediaRetention: 'not retained by SpeakUp' });
     } catch (error) {
       console.error('analysis_failed', error.message);
       return json(request, env, { error: 'Analysis failed. Your local practice result was not changed.' }, 502);

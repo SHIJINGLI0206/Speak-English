@@ -1,6 +1,6 @@
-# SpeakUp Cloudflare AI Coach API
+# SpeakUp Cloudflare Precision Coach API
 
-This Worker receives one completed pronunciation attempt, transcribes the audio with `gpt-4o-mini-transcribe`, then asks GPT-5.6 Luna for short structured feedback. The browser never receives an OpenAI API key.
+This lightweight Worker receives one completed pronunciation attempt only after opt-in, transcribes it through OpenAI, then uses a small vision-capable OpenAI model for concise structured feedback. It does not run a GPU instance. Camera landmarks remain in the browser; one low-resolution still is sent only after separate opt-in.
 
 ## Deploy
 
@@ -38,7 +38,7 @@ This Worker receives one completed pronunciation attempt, transcribes the audio 
 
 ## Local development
 
-Copy `.dev.vars.example` to `.dev.vars`, enter a development OpenAI key, and run:
+Copy `.dev.vars.example` to `.dev.vars`, enter a development OpenAI key, then run:
 
 ```bash
 npm run dev
@@ -48,6 +48,6 @@ Do not commit `.dev.vars`, API keys, or any other secrets.
 
 ## Privacy and limits
 
-- The browser sends a completed audio attempt only after the learner turns on Secure Coach. It sends one compressed camera frame only after a separate visual-evidence opt-in.
+- The browser sends a completed audio attempt only after the learner turns on Precision Coach. It sends one compressed camera still only after a separate visual-evidence opt-in.
 - It does not upload continuous video or persist raw audio/video in the Worker.
-- `RATE_LIMIT` defaults to 12 analyses per IP per minute. It is a basic personal-app safeguard; use Cloudflare Access or Turnstile before sharing the app publicly.
+- `RATE_LIMIT` defaults to 12 analyses per IP per minute. `MAX_OPENAI_ANALYSES_PER_DAY` defaults to 12 per IP, to cap spend. Use Cloudflare Access or Turnstile before sharing the app publicly.

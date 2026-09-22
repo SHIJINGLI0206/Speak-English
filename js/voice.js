@@ -167,8 +167,9 @@ const VoiceCoach = {
     if (onUpdate) onUpdate('analyzing');
 
     const visualMetrics = typeof MouthTracker !== 'undefined' ? MouthTracker.getLatestMetrics() : {};
+    // A frame is sent only after explicit visual-evidence consent. Landmarks
+    // remain on-device; the API receives one low-resolution still, never video.
     const settings = typeof StorageManager !== 'undefined' ? StorageManager.getSettings() : {};
-    // A frame is transmitted only after explicit learner consent. Local landmarks remain local.
     const visualFrame = settings.shareVisualEvidence && typeof MouthTracker !== 'undefined' ? MouthTracker.captureFrame() : '';
 
     // Small delay so the UI can update to "Analyzing..." before heavy work

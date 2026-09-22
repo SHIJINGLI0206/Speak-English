@@ -9,7 +9,8 @@
 	"observability": { "enabled": true, "head_sampling_rate": 1 },
 	"vars": {
 		"ALLOWED_ORIGINS": "https://shijingli0206.github.io",
-		"MAX_ANALYSES_PER_MINUTE": "12"
+		"MAX_ANALYSES_PER_MINUTE": "12",
+		"MAX_OPENAI_ANALYSES_PER_DAY": "12"
 	},
 	"kv_namespaces": [
 		{
