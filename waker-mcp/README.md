@@ -22,7 +22,7 @@ WRANGLER_LOG_PATH=/private/tmp/speakup-wrangler.log npm run deploy
 WRANGLER_LOG_PATH=/private/tmp/speakup-wrangler.log npx wrangler d1 migrations apply WAKE_DB --remote
 ```
 
-The config provisions a dedicated KV namespace and D1 database. The public Worker origin and GitHub numeric owner ID are in `wrangler.jsonc`; they are not secrets. Never put the GitHub client secret or Pi polling token in that file, source control, chat, or a frontend bundle. Store them with `wrangler secret put GITHUB_CLIENT_SECRET` and `wrangler secret put PI_POLL_TOKEN`. The latter must be identical to `SPEAKUP_PI_TOKEN` in the Pi's root-only `/etc/speakup-waker.env`.
+The config pins the existing dedicated KV namespace and D1 database IDs, so redeployment keeps using the same OAuth and wake-job storage. The public Worker origin and GitHub numeric owner ID are in `wrangler.jsonc`; they are not secrets. Never put the GitHub client secret or Pi polling token in that file, source control, chat, or a frontend bundle. Store them with `wrangler secret put GITHUB_CLIENT_SECRET` and `wrangler secret put PI_POLL_TOKEN`. The latter must be identical to `SPEAKUP_PI_TOKEN` in the Pi's root-only `/etc/speakup-waker.env`.
 
 GitHub OAuth app settings:
 
@@ -56,7 +56,7 @@ In ChatGPT web, open **Plugins → Add custom MCP server** and use:
 
 `https://speakup-waker-mcp.jinglishi0206.workers.dev/mcp`
 
-Choose OAuth. On the consent page, check the client name and redirect host before continuing to GitHub. Only the approved GitHub account can obtain a token that can queue wake jobs. `wake_imac` is a write tool, so review ChatGPT's confirmation before execution. Test text first, then voice on the iPhone in the same ChatGPT account. iPhone app availability and voice tool invocation must be verified on the device; this repository cannot prove them.
+Choose OAuth. On the consent page, check the client name and redirect host, select **Continue with GitHub**, then follow the **Continue to GitHub** link on the next page. Only the approved GitHub account can obtain a token that can queue wake jobs. `wake_imac` is a write tool, so review ChatGPT's confirmation before execution. Test text first, then voice on the iPhone in the same ChatGPT account. iPhone app availability and voice tool invocation must be verified on the device; this repository cannot prove them.
 
 ## Security / operating limits
 
