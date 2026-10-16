@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "speakup-waker-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-16",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "vars": {
+    "PUBLIC_ORIGIN": "https://speakup-waker-mcp.jinglishi0206.workers.dev",
+    "GITHUB_OWNER_ID": "13295012",
+    "GITHUB_CLIENT_ID": "Ov23liNLlbiF2Hb4yqeK"
+  },
+  "kv_namespaces": [{ "binding": "OAUTH_KV" }],
+  "d1_databases": [{
+    "binding": "WAKE_DB",
+    "database_name": "speakup-wake-jobs",
+    "migrations_dir": "migrations"
+  }]
+}
