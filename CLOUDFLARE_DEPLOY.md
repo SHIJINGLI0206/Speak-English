@@ -16,11 +16,11 @@ npx wrangler secret put OPENAI_API_KEY
 npm run deploy
 ```
 
-The Worker has no GPU instance and never exposes this secret to the browser. It calls OpenAI only after the learner enables Precision Coach: `gpt-4o-mini-transcribe` creates a transcript, then `gpt-4o-mini` turns structured audio and optional still-image evidence into concise feedback. Camera landmarks still run in the browser.
+The Worker has no GPU instance and never exposes this secret to the browser. It calls OpenAI only after the learner enables Precision Coach: `gpt-4o-mini-transcribe` creates a transcript, then `gpt-4o-mini` turns transcript and optional still-image evidence into concise feedback. The same opt-in also generates two adaptive practice items from recent words, scores, and feedback text, cached in the browser for the day. Camera landmarks and microphone-level checks still run in the browser.
 
 ## 2. Connect the frontend
 
-The Worker deployment prints a URL ending in `.workers.dev`. Put it in `js/runtime-config.js` for production; the current deployment is already configured. SpeakUp sends a completed audio attempt only after the learner enables **Precision Coach**. A camera still is sent only after separate visual-evidence consent.
+The Worker deployment prints a URL ending in `.workers.dev`. Put it in `js/runtime-config.js` for production; the current deployment is already configured. SpeakUp sends a completed audio attempt only after the learner enables **Precision Coach** and the recording passes the basic quality gate. A camera still is sent only after separate visual-evidence consent. Transcript token confidence is a recognition-reliability signal, not a phoneme score. Low-quality or low-confidence attempts do not contribute to automatic skill progression.
 
 If the frontend stays on GitHub Pages, leave `ALLOWED_ORIGINS` as `https://shijingli0206.github.io`. If you use Cloudflare Pages, update it to your Pages URL or custom domain and redeploy the Worker.
 
@@ -33,7 +33,7 @@ In the Cloudflare dashboard:
 3. Use the repository root as the root directory, leave the build command empty, and set the output directory to `.`.
 4. Deploy, then add the Pages URL to the Worker `ALLOWED_ORIGINS` value and redeploy the Worker.
 
-For a personal app, the Worker’s KV limit and daily per-IP OpenAI cap are a useful baseline. Before sharing the app publicly, add Cloudflare Access or Turnstile to protect the OpenAI-backed endpoint from direct abuse.
+For a personal app, the Worker’s KV limit and daily per-IP OpenAI cap are a useful baseline. The adaptive-word request shares the 12-per-day OpenAI cap with audio analyses. Before sharing the app publicly, add Cloudflare Access or Turnstile to protect the OpenAI-backed endpoints from direct abuse; CORS alone is not authentication.
 
 ## Optional D1 learning-history backup
 

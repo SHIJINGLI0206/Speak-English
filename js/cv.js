@@ -5,11 +5,12 @@
  */
 const MouthTracker = {
   video: null, canvas: null, ctx: null, stream: null, faceLandmarker: null,
-  animationId: null, isTracking: false, latestMetrics: null, lastFrameAt: 0,
+  animationId: null, isTracking: false, latestMetrics: null, lastFrameAt: 0, calibrationSamples: [],
 
   async startCamera(videoElement, canvasElement, category) {
     this.stopCamera();
     this.latestMetrics = null;
+    this.calibrationSamples = [];
     this.video = videoElement;
     this.canvas = canvasElement;
     this.ctx = this.canvas.getContext('2d');
@@ -68,7 +69,19 @@ const MouthTracker = {
     const blendshapes = results.faceBlendshapes?.[0]?.categories || [];
     const metrics = this.measureLandmarks(landmarks, blendshapes);
     this.latestMetrics = metrics;
+    this.calibrationSamples.push({ at: Date.now(), confidence: metrics.confidence });
+    this.calibrationSamples = this.calibrationSamples.filter(sample => Date.now() - sample.at < 3500);
     this.drawLips(landmarks, metrics);
+  },
+
+  async calibrate(durationMs = 2500) {
+    this.calibrationSamples = [];
+    await new Promise(resolve => setTimeout(resolve, durationMs));
+    const samples = this.calibrationSamples;
+    const good = samples.filter(sample => sample.confidence === 'good').length;
+    const quality = samples.length >= 8 && good / samples.length >= 0.7 ? 'good' : 'limited';
+    return { quality, sampleCount: samples.length, goodFrames: good,
+      message: quality === 'good' ? 'Face framed. Speak naturally.' : 'Face framing is limited; audio coaching can still continue.' };
   },
 
   measureLandmarks(points, blendshapes = []) {
@@ -150,6 +163,7 @@ const MouthTracker = {
     this.faceLandmarker = null;
     if (this.stream) this.stream.getTracks().forEach(track => track.stop());
     this.stream = null;
+    this.calibrationSamples = [];
     if (this.video) this.video.srcObject = null;
     if (this.resizeCanvasBound) window.removeEventListener('resize', this.resizeCanvasBound);
     this.resizeCanvasBound = null;

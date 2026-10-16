@@ -18,9 +18,36 @@ const Curriculum = {
   skill(id) { return this.skills.find(skill => skill.id === id); },
   listeningItem(pair, stage = 'Hear the contrast') { const skill = this.skill(pair.skillId); return { id: `listen-${pair.skillId}-${pair.listenWord}`, kind: 'listening', skillId: pair.skillId, target: pair.options.join(' / '), listenWord: pair.listenWord, options: pair.options, answer: pair.answer, format: 'Listening', stage, category: skill.category, cue: skill.cue, visualCue: skill.visualCue, videoUrl: skill.videoUrl }; },
   diagnosticPlan() { const listening = this.perceptionPairs.map(pair => this.listeningItem(pair, 'Diagnostic · hear')); const ids = ['v-w', 'th-voiceless', 'r-l', 'final-consonants', 'vowels', 'stress', 'rhythm']; return [...listening, ...ids.map((id, index) => this.createItem(this.skill(id), index, index > 4 ? 'Sentence' : 'Word', 'Diagnostic · say'))]; },
-  progress(history, skillId) { const attempts = history.filter(item => item.skillId === skillId).sort((a, b) => a.timestamp - b.timestamp); const recentProduction = attempts.filter(item => item.format !== 'Listening').slice(-5); const clear = recentProduction.filter(item => item.score >= 82).length; const transfers = attempts.filter(item => item.format === 'Sentence' && item.score >= 82).length; const heard = attempts.filter(item => item.format === 'Listening' && item.score >= 82).length; const days = new Set(recentProduction.filter(item => item.score >= 82).map(item => item.date)).size; const retained = attempts.some(item => item.format !== 'Listening' && item.score >= 82 && Date.now() - item.timestamp > 6 * 86400000); const ready = clear >= 4 && transfers >= 1 && heard >= 2 && days >= 3 && retained; return { attempts, recentProduction, clear, transfers, heard, days, retained, ready, confidence: Math.min(100, clear * 12 + Math.min(transfers, 2) * 12 + Math.min(heard, 2) * 10 + Math.min(days, 3) * 10 + (retained ? 18 : 0)) }; },
+  progress(history, skillId) {
+    const attempts = history.filter(item => item.skillId === skillId).sort((a, b) => a.timestamp - b.timestamp);
+    const eligible = attempts.filter(item => item.masteryEligible === true);
+    const word = eligible.filter(item => item.format === 'Word');
+    const sentence = eligible.filter(item => item.format === 'Sentence');
+    const listening = attempts.filter(item => item.format === 'Listening');
+    const delayed = eligible.filter(item => item.stage === 'Review' && item.reviewOf &&
+      attempts.some(previous => previous.timestamp === item.reviewOf && previous.masteryEligible === true &&
+        previous.score >= 82 && item.timestamp - previous.timestamp >= 6 * 86400000));
+    const average = items => items.length ? Math.round(items.slice(-5).reduce((sum, item) => sum + item.score, 0) / Math.min(items.length, 5)) : null;
+    const recentProduction = eligible.filter(item => item.format !== 'Listening').slice(-8);
+    const clear = word.filter(item => item.score >= 82).length;
+    const transfers = sentence.filter(item => item.score >= 82).length;
+    const heard = listening.filter(item => item.score >= 82).length;
+    const days = new Set(recentProduction.filter(item => item.score >= 82).map(item => item.date)).size;
+    const retained = delayed.some(item => item.score >= 82);
+    const requiresListening = this.perceptionPairs.some(pair => pair.skillId === skillId);
+    const ready = clear >= 4 && transfers >= 1 && (!requiresListening || heard >= 2) && days >= 3 && retained;
+    return { attempts, recentProduction, clear, transfers, heard, days, retained, ready,
+      scores: { listening: average(listening), word: average(word), sentence: average(sentence), retention: average(delayed) },
+      confidence: Math.min(100, clear * 12 + Math.min(transfers, 2) * 12 + Math.min(heard, 2) * 10 + Math.min(days, 3) * 10 + (retained ? 18 : 0)) };
+  },
   createItem(skill, index, format = 'Word', stage = 'Precision') { const [target, ipa, sentence] = skill.items[index % skill.items.length]; return { id: `${skill.id}-${format}-${target}`, skillId: skill.id, target, ipa, sentence, spokenTarget: format === 'Word' ? target : sentence, format, stage, cue: skill.cue, category: skill.category, visualCue: skill.visualCue, videoUrl: skill.videoUrl }; },
   rankSkills(history, profile) { const MandarinBias = ['r-l', 'v-w', 'th-voiceless', 'final-consonants', 'stress']; return this.skills.map(skill => ({ skill, progress: this.progress(history, skill.id), bias: ['Mandarin', 'Cantonese'].includes(profile.firstLanguage) ? MandarinBias.indexOf(skill.id) : 99 })).sort((a, b) => a.progress.confidence - b.progress.confidence || a.bias - b.bias || a.progress.attempts.length - b.progress.attempts.length); },
-  todayPlan(history, profile) { const due = history.filter(item => item.nextReviewAt && item.nextReviewAt <= Date.now()).sort((a, b) => a.nextReviewAt - b.nextReviewAt); const ranked = this.rankSkills(history, profile), primary = ranked[0], secondary = ranked[1], items = []; due.slice(0, 2).forEach((attempt, index) => { const skill = this.skill(attempt.skillId) || primary.skill; items.push(this.createItem(skill, index, attempt.format === 'Word' ? 'Sentence' : 'Word', 'Review')); }); items.push(this.listeningItem(this.perceptionPairs.find(pair => pair.skillId === primary.skill.id) || this.perceptionPairs[0])); items.push(this.createItem(primary.skill, 0, 'Word', 'Shape + say')); items.push(this.createItem(primary.skill, 1, 'Sentence', 'Transfer')); items.push(this.createItem(secondary.skill, 0, 'Word', 'Maintenance')); items.push(this.createItem(this.skill('clarity'), 0, 'Sentence', 'Career lab')); return { items: items.slice(0, 6), title: `Build ${primary.skill.name}`, focus: `${primary.skill.cue} First hear it, then shape it, then use it in a work sentence.`, minutes: profile.dailyMinutes || 30, primary }; },
+  dueReviews(history) {
+    const reviewed = new Set(history.map(item => item.reviewOf).filter(Boolean));
+    return history.filter(item => item.masteryEligible === true && item.format !== 'Listening' &&
+      item.nextReviewAt && item.nextReviewAt <= Date.now() && !reviewed.has(item.timestamp))
+      .sort((a, b) => a.nextReviewAt - b.nextReviewAt);
+  },
+  todayPlan(history, profile) { const due = this.dueReviews(history); const ranked = this.rankSkills(history, profile), primary = ranked[0], secondary = ranked[1], items = []; due.slice(0, 2).forEach(attempt => { const skill = this.skill(attempt.skillId) || primary.skill; items.push({ ...this.createItem(skill, 0, attempt.format, 'Review'), target: attempt.target, ipa: attempt.ipa, sentence: attempt.sentence, spokenTarget: attempt.format === 'Word' ? attempt.target : attempt.sentence, reviewOf: attempt.timestamp }); }); items.push(this.listeningItem(this.perceptionPairs.find(pair => pair.skillId === primary.skill.id) || this.perceptionPairs[0])); items.push(this.createItem(primary.skill, 0, 'Word', 'Shape + say')); items.push(this.createItem(primary.skill, 1, 'Sentence', 'Transfer')); items.push(this.createItem(secondary.skill, 0, 'Word', 'Maintenance')); items.push(this.createItem(this.skill('clarity'), 0, 'Sentence', 'Career lab')); return { items: items.slice(0, 6), title: `Build ${primary.skill.name}`, focus: `${primary.skill.cue} First hear it, then shape it, then use it in a work sentence.`, minutes: profile.dailyMinutes || 30, primary }; },
   nextLevel(history) { const core = this.skills.filter(skill => !['clarity', 'leadership'].includes(skill.id)); const ready = core.filter(skill => this.progress(history, skill.id).ready).length; return { ready, total: core.length, unlocked: ready === core.length }; }
 };

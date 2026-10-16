@@ -5,7 +5,7 @@
  * deployment; cloud scoring belongs behind a server, never an API key field.
  *
  * iOS Safari Compatibility Notes:
- * - MediaRecorder is NOT supported on iOS Safari — gracefully skipped.
+ * - MediaRecorder is feature-detected; older iOS versions may not provide it.
  * - SpeechRecognition.onend does NOT reliably fire on iOS when .stop() is
  *   called manually. We use a flag + direct invocation pattern instead.
  * - A fresh SpeechRecognition instance must be created for every session.
@@ -25,6 +25,9 @@ const VoiceCoach = {
   audioChunks: [],
   audioBlob: null,
   audioStartedAt: 0,
+  audioContext: null,
+  audioSampler: null,
+  audioSamples: [],
 
   // Detect iOS Safari
   _isIOS() {
@@ -81,7 +84,7 @@ const VoiceCoach = {
       this._transcribedText = '';
       this._practiceArgs = { targetWord, targetIpa, category, stage, firstLanguage };
       this.audioBlob = null;
-      this.startAudioCapture().catch(error => console.warn('Audio capture unavailable:', error));
+      await this.startAudioCapture().catch(error => console.warn('Audio capture unavailable:', error));
       onUpdate('listening');
       return;
     }
@@ -99,7 +102,7 @@ const VoiceCoach = {
     this._transcribedText = '';
     this._practiceArgs = { targetWord, targetIpa, category, stage, firstLanguage };
     this.audioBlob = null;
-    this.startAudioCapture().catch(error => console.warn('Audio capture unavailable:', error));
+    await this.startAudioCapture().catch(error => console.warn('Audio capture unavailable:', error));
 
     // SpeechRecognition remains a fast local hint. The optional Worker receives the
     // captured audio after the learner finishes, never an API key from the browser.
@@ -149,6 +152,14 @@ const VoiceCoach = {
     this._finishAnalysis();
   },
 
+  cancelPractice() {
+    this.isRecording = false;
+    this._onComplete = null;
+    this._onUpdate = null;
+    if (this.recognition) { try { this.recognition.stop(); } catch { /* already stopped */ } }
+    void this.stopAudioCapture();
+  },
+
   // Core completion handler — called either from stopPractice() or recognition.onend
   _finishAnalysis() {
     if (!this.isRecording) return; // Guard against double-call
@@ -175,14 +186,27 @@ const VoiceCoach = {
     // Small delay so the UI can update to "Analyzing..." before heavy work
     setTimeout(async () => {
       const audio = await this.stopAudioCapture();
-      const audioMetrics = { durationMs: Math.max(0, Date.now() - this.audioStartedAt), bytes: audio?.size || 0 };
+      const audioMetrics = this.measureAudioQuality(audio);
       let report = null;
-      try {
-        report = await this.analyzeWithCloud(audio, targetWord, targetIpa, category, stage, firstLanguage, audioMetrics, visualMetrics, visualFrame);
-      } catch (error) {
-        console.warn('Cloud analysis unavailable; using local clarity fallback.', error);
+      let cloudFailure = '';
+      if (audioMetrics.quality !== 'retry') {
+        try {
+          report = await this.analyzeWithCloud(audio, targetWord, targetIpa, category, stage, firstLanguage, audioMetrics, visualMetrics, visualFrame);
+        } catch (error) {
+          console.warn('Cloud analysis unavailable; using local clarity fallback.', error);
+          cloudFailure = String(error.message || 'Request failed').slice(0, 120);
+        }
       }
       report = report || this.evaluateLocally(targetWord, targetIpa, category, transcript);
+      if (audioMetrics.quality === 'retry') {
+        report.score = 0;
+        report.toImprove = [audioMetrics.reason];
+        report.wellDone = ['This attempt was captured, but it cannot be assessed reliably.'];
+      }
+      report.evidence = { ...(report.evidence || {}), recordingQuality: audioMetrics.quality,
+        recordingReason: audioMetrics.reason, durationMs: audioMetrics.durationMs,
+        audioBytes: audioMetrics.bytes, transcriptConfidence: report.evidence?.transcriptConfidence || 'unknown',
+        analysisSource: report.evidence?.analysisSource || 'Browser transcript hint', cloudStatus: cloudFailure };
       setTimeout(() => { if (onComplete) onComplete(report); }, 350);
     }, 200);
   },
@@ -193,9 +217,27 @@ const VoiceCoach = {
     const supported = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find(type => MediaRecorder.isTypeSupported(type));
     this.mediaRecorder = supported ? new MediaRecorder(this.mediaStream, { mimeType: supported }) : new MediaRecorder(this.mediaStream);
     this.audioChunks = [];
+    this.audioSamples = [];
     this.audioStartedAt = Date.now();
     this.mediaRecorder.ondataavailable = event => { if (event.data && event.data.size) this.audioChunks.push(event.data); };
     this.mediaRecorder.start();
+    const AudioContextAPI = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextAPI) {
+      try {
+        this.audioContext = new AudioContextAPI();
+        const source = this.audioContext.createMediaStreamSource(this.mediaStream);
+        const analyser = this.audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+        source.connect(analyser);
+        const data = new Float32Array(analyser.fftSize);
+        this.audioSampler = setInterval(() => {
+          analyser.getFloatTimeDomainData(data);
+          const rms = Math.sqrt(data.reduce((sum, value) => sum + value * value, 0) / data.length);
+          const peak = data.reduce((maximum, value) => Math.max(maximum, Math.abs(value)), 0);
+          this.audioSamples.push({ rms, peak });
+        }, 100);
+      } catch (error) { console.warn('Audio meter unavailable:', error); }
+    }
   },
 
   async stopAudioCapture() {
@@ -204,6 +246,10 @@ const VoiceCoach = {
       const recorder = this.mediaRecorder;
       recorder.onstop = () => {
         this.audioBlob = this.audioChunks.length ? new Blob(this.audioChunks, { type: recorder.mimeType || 'audio/webm' }) : null;
+        if (this.audioSampler) clearInterval(this.audioSampler);
+        this.audioSampler = null;
+        if (this.audioContext) void this.audioContext.close();
+        this.audioContext = null;
         if (this.mediaStream) this.mediaStream.getTracks().forEach(track => track.stop());
         this.mediaStream = null;
         this.mediaRecorder = null;
@@ -211,6 +257,25 @@ const VoiceCoach = {
       };
       recorder.stop();
     });
+  },
+
+  measureAudioQuality(audio) {
+    const durationMs = this.audioStartedAt ? Math.max(0, Date.now() - this.audioStartedAt) : 0;
+    const bytes = audio?.size || 0;
+    const samples = this.audioSamples;
+    const speechFrames = samples.filter(sample => sample.rms >= 0.008).length;
+    const clippedFrames = samples.filter(sample => sample.peak >= 0.98).length;
+    let quality = 'good', reason = 'Microphone level and recording length look usable.';
+    if (!audio || bytes < 1000 || durationMs < 650) {
+      quality = 'retry'; reason = 'Record for at least one second, then try again.';
+    } else if (samples.length >= 5 && speechFrames < 2) {
+      quality = 'retry'; reason = 'We could not hear speech. Check the microphone and try again.';
+    } else if (samples.length >= 5 && clippedFrames / samples.length > 0.15) {
+      quality = 'limited'; reason = 'The microphone sounds overloaded. Move slightly farther away and retry if the transcript is wrong.';
+    } else if (samples.length < 5) {
+      quality = 'limited'; reason = 'The microphone level could not be measured; review the transcript before trusting this result.';
+    }
+    return { durationMs, bytes, quality, reason, speechFrames, sampleCount: samples.length };
   },
 
   async analyzeWithCloud(audio, target, ipa, category, stage, firstLanguage, audioMetrics, visualMetrics, visualFrame) {
@@ -237,7 +302,7 @@ const VoiceCoach = {
       wellDone: payload.wellDone || ['AI feedback was unavailable for this attempt.'],
       toImprove: payload.toImprove || ['Try the reference word once more.'],
       cvMetrics: { opening: payload.opening, rounding: payload.rounding, tip: payload.tip },
-      evidence: { transcriptConfidence: payload.confidence || 'limited', visualConfidence: visualMetrics && visualMetrics.confidence || 'not assessed', analysisSource: payload.analysisSource, audioEvidence: payload.evidence || null }
+      evidence: { transcriptConfidence: payload.transcriptConfidence || 'unknown', visualConfidence: visualMetrics && visualMetrics.confidence || 'not assessed', analysisSource: payload.analysisSource, audioEvidence: payload.evidence || null }
     };
   },
 
