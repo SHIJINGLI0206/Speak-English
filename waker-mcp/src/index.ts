@@ -132,8 +132,10 @@ async function authorize(request: Request, env: WakerEnv, server: OAuthAuthoriza
       githubUrl.searchParams.set("redirect_uri", `${env.PUBLIC_ORIGIN}/callback`);
       githubUrl.searchParams.set("scope", "read:user");
       githubUrl.searchParams.set("state", upstream.state);
-      upstream.headers.set("Location", githubUrl.toString());
-      return noStore(new Response(null, { status: 302, headers: upstream.headers }));
+      return html(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Continue to GitHub</title><style>body{font:16px system-ui;max-width:38rem;margin:8vh auto;padding:1.2rem;line-height:1.5}a{display:inline-block;padding:.7rem 1rem;background:#1f2937;color:white;text-decoration:none;border-radius:.4rem}</style>
+        <h1>Continue to GitHub</h1><p>GitHub will verify that you own this SpeakUp Waker account. Only your public profile is requested.</p>
+        <a href="${safeText(githubUrl.toString())}">Continue to GitHub</a></html>`, upstream.headers);
     }
     return new Response("Method not allowed", { status: 405, headers: { Allow: "GET, POST" } });
   } catch (error) {

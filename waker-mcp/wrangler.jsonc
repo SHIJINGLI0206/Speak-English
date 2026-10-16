@@ -12,10 +12,11 @@
     "GITHUB_OWNER_ID": "13295012",
     "GITHUB_CLIENT_ID": "Ov23liNLlbiF2Hb4yqeK"
   },
-  "kv_namespaces": [{ "binding": "OAUTH_KV" }],
+  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "8fc4cc0a169f479aa1eaf3ef4ed558d4" }],
   "d1_databases": [{
     "binding": "WAKE_DB",
     "database_name": "speakup-wake-jobs",
+    "database_id": "4308c89e-0951-4ac0-991e-3e539930e21d",
     "migrations_dir": "migrations"
   }]
 }
