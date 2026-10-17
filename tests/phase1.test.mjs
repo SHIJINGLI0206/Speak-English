@@ -96,3 +96,19 @@ test('adaptive practice returns bounded new words without media', async () => {
     assert.doesNotMatch(prompt, /audio\/webm|data:image/);
   } finally { globalThis.fetch = originalFetch; }
 });
+
+test('OpenAI quota errors are classified without exposing the API key', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalError = console.error;
+  console.error = () => {};
+  globalThis.fetch = async () => Response.json({ error: { type: 'insufficient_quota', code: 'credit_balance_exhausted' } }, { status: 429 });
+  try {
+    const response = await coachWorker.fetch(new Request('https://worker.example/api/practice-plan', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ skillId: 'v-w' })
+    }), { OPENAI_API_KEY: 'test-key' });
+    assert.equal(response.status, 503);
+    const text = await response.text();
+    assert.match(text, /credit_balance_exhausted/);
+    assert.doesNotMatch(text, /test-key/);
+  } finally { globalThis.fetch = originalFetch; console.error = originalError; }
+});

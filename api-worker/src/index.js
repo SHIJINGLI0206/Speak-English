@@ -192,6 +192,24 @@ function transcriptConfidence(logprobs, coverage) {
   return mean >= -0.6 && uncertain <= 0.15 && coverage >= 0.75 ? 'high' : 'limited';
 }
 
+async function practicePlanUpstreamError(response, request, env) {
+  const payload = await response.json().catch(() => ({}));
+  const code = shortText(payload?.error?.code, 64);
+  const type = shortText(payload?.error?.type, 64);
+  const quotaCodes = new Set(['insufficient_quota', 'credit_balance_exhausted', 'organization_spend_limit_exceeded',
+    'project_spend_limit_exceeded', 'organization_usage_limit_exceeded']);
+  const safeCode = quotaCodes.has(code) ? code : ['rate_limit_exceeded', 'slow_down'].includes(code) ? code : 'unclassified';
+  console.error(JSON.stringify({ event: 'openai_practice_failed', status: response.status, code: safeCode,
+    type: type === 'insufficient_quota' ? type : 'other' }));
+  if (quotaCodes.has(code) || type === 'insufficient_quota')
+    return json(request, env, { error: 'OpenAI project quota or spend limit is unavailable. Check OpenAI billing and project limits.', code: safeCode }, 503);
+  if (response.status === 429)
+    return json(request, env, { error: 'OpenAI is rate-limiting requests. Try again later.', code: safeCode }, 429);
+  if (response.status === 401 || response.status === 403)
+    return json(request, env, { error: 'The OpenAI key is not authorised for this request. Check the Worker secret and project permissions.' }, 503);
+  return json(request, env, { error: 'OpenAI practice generation failed. Use the built-in plan.' }, 502);
+}
+
 async function generatePracticePlan(request, env) {
   const limit = await enforceRateLimit(request, env, 'practice-plan');
   if (!limit.allowed) return json(request, env, { error: 'Too many practice-plan requests.' }, 429);
@@ -216,7 +234,7 @@ async function generatePracticePlan(request, env) {
       text: { format: { type: 'json_schema', name: 'adaptive_practice', strict: true, schema: practicePlanSchema } }
     })
   });
-  if (!response.ok) throw new Error(`Practice generation failed (${response.status})`);
+  if (!response.ok) return practicePlanUpstreamError(response, request, env);
   const parsed = JSON.parse(extractOutputText(await response.json()));
   const items = parsed.items.map(item => ({ target: shortText(item.target, 64), ipa: shortText(item.ipa, 80), sentence: shortText(item.sentence, 220) }));
   if (items.length !== 2 || items.some(item => !item.target || !item.sentence)) throw new Error('Invalid practice-plan output');
